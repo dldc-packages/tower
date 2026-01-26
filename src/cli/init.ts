@@ -4,6 +4,7 @@
  * Performs one-time bootstrap of Tower infrastructure.
  */
 
+import { input } from "@inquirer/prompts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
 import { fileExists } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
@@ -25,8 +26,11 @@ export async function runInit(): Promise<void> {
   // Step 1: Check prerequisites
   await checkPrerequisites();
 
+  // Step 2: Prompt for configuration
+  logger.info("");
+  const config = await promptConfiguration();
+
   // TODO: Implement remaining steps
-  // 2. promptConfiguration()
   // 3. generateCredentials()
   // 4. generateInitialIntent()
   // 5. applyInitialStack()
@@ -34,7 +38,11 @@ export async function runInit(): Promise<void> {
   // 7. printSummary()
 
   logger.info("");
-  logger.info("✓ Prerequisites check passed!");
+  logger.info("✓ Configuration collected!");
+  logger.info(`  Admin email: ${config.adminEmail}`);
+  logger.info(`  Tower domain: ${config.towerDomain}`);
+  logger.info(`  Registry domain: ${config.registryDomain}`);
+  logger.info(`  OTEL domain: ${config.otelDomain}`);
   logger.warn("Remaining initialization steps not yet implemented");
   logger.info("See BLUEPRINT.md for implementation details");
 }
@@ -92,15 +100,75 @@ async function checkPrerequisites(): Promise<void> {
 /**
  * Prompt user for Tower configuration
  */
-function _promptConfiguration(): {
+async function promptConfiguration(): Promise<{
   adminEmail: string;
   towerDomain: string;
   registryDomain: string;
   otelDomain: string;
-} {
-  // TODO: Use @std/cli/prompt or similar
-  // TODO: Validate domains (basic format check)
-  throw new Error("Not implemented");
+}> {
+  logger.info("Collecting configuration...");
+  logger.info("");
+
+  // Prompt for admin email
+  const adminEmail = await input({
+    message: "Admin email (for Let's Encrypt ACME notifications):",
+    validate: (value) => {
+      if (!value.includes("@") || !value.includes(".")) {
+        return "Please enter a valid email address";
+      }
+      return true;
+    },
+  });
+
+  // Prompt for Tower domain
+  const towerDomain = await input({
+    message: "Tower domain (e.g., tower.example.com):",
+    validate: (value) => {
+      if (!isValidDomain(value)) {
+        return "Please enter a valid domain (e.g., tower.example.com)";
+      }
+      return true;
+    },
+  });
+
+  // Prompt for Registry domain
+  const registryDomain = await input({
+    message: "Registry domain (e.g., registry.example.com):",
+    validate: (value) => {
+      if (!isValidDomain(value)) {
+        return "Please enter a valid domain (e.g., registry.example.com)";
+      }
+      return true;
+    },
+  });
+
+  // Prompt for OTEL domain
+  const otelDomain = await input({
+    message: "OTEL/Grafana domain (e.g., otel.example.com):",
+    validate: (value) => {
+      if (!isValidDomain(value)) {
+        return "Please enter a valid domain (e.g., otel.example.com)";
+      }
+      return true;
+    },
+  });
+
+  return {
+    adminEmail,
+    towerDomain,
+    registryDomain,
+    otelDomain,
+  };
+}
+
+/**
+ * Validate domain format
+ */
+function isValidDomain(domain: string): boolean {
+  // Basic domain validation - allows subdomains
+  const domainRegex =
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+  return domainRegex.test(domain);
 }
 
 /**
