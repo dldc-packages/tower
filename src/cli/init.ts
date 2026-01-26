@@ -6,6 +6,7 @@
 
 import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
+import denoJson from "../../deno.json" with { type: "json" };
 import { apply } from "../core/applier.ts";
 import type { Credentials, Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
@@ -266,7 +267,7 @@ function generateInitialIntent(config: {
     version: "1",
     adminEmail: config.adminEmail,
     tower: {
-      version: "0.1.0", // Tower version from deno.json
+      version: denoJson.version,
       domain: config.towerDomain,
     },
     registry: {

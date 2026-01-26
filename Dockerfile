@@ -1,5 +1,5 @@
 # Tower Docker image
-FROM denoland/deno:2.1.4
+FROM denoland/deno:2.6.6
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ WORKDIR /app
 COPY deno.json deno.lock* ./
 
 # Cache dependencies
-RUN deno install --entrypoint src/cli/mod.ts
+RUN deno install --entrypoint mod.ts
 
 # Copy source code
 COPY . .
@@ -29,4 +29,4 @@ ENV TOWER_DATA_DIR=/var/infra \
     TOWER_PORT=3100
 
 # Run Tower HTTP server
-CMD ["deno", "run", "--allow-all", "src/cli/mod.ts", "serve"]
+CMD ["deno", "run", "--allow-all", "mod.ts", "serve"]
