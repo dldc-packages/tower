@@ -67,13 +67,4 @@ async function validateSingleDomain(
   }
 }
 
-/**
- * Extract new domains by comparing current and new intents
- */
-export function getNewDomains(
-  currentDomains: string[],
-  newDomains: string[],
-): string[] {
-  const currentSet = new Set(currentDomains);
-  return newDomains.filter((domain) => !currentSet.has(domain));
-}
+// Note: We intentionally validate all domains on every run for simplicity.

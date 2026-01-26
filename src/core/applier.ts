@@ -6,6 +6,7 @@
 
 import type { HealthCheck, Intent } from "@dldc/tower/types";
 import { logger } from "../utils/logger.ts";
+import { validateDns } from "./dns.ts";
 import { validateIntent } from "./validator.ts";
 
 /**
@@ -78,7 +79,7 @@ interface ResolvedService {
  * 9. Reload Caddy
  * 10. Save intent.json
  */
-export function apply(intent: Intent): void {
+export async function apply(intent: Intent): Promise<void> {
   logger.info("🚀 Starting deployment");
 
   // Step 1: Validate intent
@@ -89,11 +90,23 @@ export function apply(intent: Intent): void {
   const services = resolveServices(validatedIntent);
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
+  // Step 4: Validate DNS for all domains (naive parallel check)
+  const domains = collectDomains(services);
+  await validateDns(domains);
+
   // TODO: Implement remaining steps
   // See BLUEPRINT.md "Apply Flow" section for detailed steps
 
   const appCount = services.filter((s) => s.type === "app").length;
   logger.info(`Deploying ${appCount} app(s)`);
+}
+
+function collectDomains(services: ResolvedService[]): string[] {
+  const domains = new Set<string>();
+  for (const svc of services) {
+    if (svc.domain) domains.add(svc.domain);
+  }
+  return Array.from(domains);
 }
 
 /**
@@ -177,18 +190,6 @@ function _resolveSemver(_intent: Intent): Map<string, string> {
   //    - Match range to tags
   //    - Get digest for matched tag
   // 3. Return map of app name → resolved image@digest
-
-  throw new Error("Not implemented");
-}
-
-/**
- * Validate DNS propagation for new domains
- */
-function _validateDns(_newDomains: string[]): void {
-  // TODO:
-  // 1. Resolve each domain
-  // 2. Check if IP matches server
-  // 3. Timeout after 30s per domain
 
   throw new Error("Not implemented");
 }
