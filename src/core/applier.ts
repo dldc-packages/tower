@@ -6,12 +6,13 @@
 
 import type { Intent } from "@dldc/tower/types";
 import { logger } from "../utils/logger.ts";
+import { validateIntent } from "./validator.ts";
 
 /**
  * Apply deployment intent
  *
  * Steps:
- * 1. Validate intent
+ * 1. ✓ Validate intent
  * 2. Resolve semver ranges to digests
  * 3. Validate DNS for new domains
  * 4. Generate docker-compose.yml and Caddyfile
@@ -24,14 +25,14 @@ import { logger } from "../utils/logger.ts";
 export async function apply(intent: Intent): Promise<void> {
   logger.info("🚀 Starting deployment");
 
-  // Placeholder await to satisfy async contract until implementation is added
-  await Promise.resolve();
+  // Step 1: Validate intent
+  const validatedIntent = validateIntent(intent);
+  logger.info("✓ Intent validated");
 
-  // TODO: Implement full apply flow
+  // TODO: Implement remaining steps
   // See BLUEPRINT.md "Apply Flow" section for detailed steps
 
-  logger.warn("Apply logic not yet implemented");
-  logger.info(`Intent: ${intent.apps.length} apps`);
+  logger.info(`Deploying ${validatedIntent.apps.length} app(s)`);
 }
 
 /**
