@@ -8,11 +8,16 @@ import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
-import { apply } from "../core/applier.ts";
 import { waitForHealthy } from "../core/health.ts";
 import type { Credentials, Intent } from "../types.ts";
-import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
-import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
+import {
+  checkDocker,
+  checkDockerCompose,
+  composeConfig,
+  composeUp,
+  execOrThrow,
+} from "../utils/exec.ts";
+import { ensureDir, fileExists, writeJsonFile, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
 export interface InitOptions {
@@ -51,9 +56,9 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   const intent = generateInitialIntent(config, dataDir);
   logger.info("✓ Initial intent generated");
 
-  // Step 5: Apply initial stack
+  // Step 5: Bootstrap tower-only compose and call /apply inside the container
   logger.info("");
-  await applyInitialStack(intent);
+  await bootstrapAndApply(intent, dataDir);
 
   // Step 6: Wait for services to be healthy
   logger.info("");
@@ -287,9 +292,69 @@ function generateInitialIntent(
 /**
  * Apply the initial Tower stack
  */
-async function applyInitialStack(intent: Intent): Promise<void> {
-  logger.info("Applying initial stack...");
-  await apply(intent);
+async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void> {
+  logger.info("Bootstrapping tower-only compose...");
+
+  const composePath = `${dataDir}/docker-compose.bootstrap.yml`;
+  const composeContent = buildBootstrapCompose(dataDir);
+  await writeTextFile(composePath, composeContent);
+
+  await composeConfig(composePath);
+  await composeUp(composePath);
+
+  await waitForHealthy(["tower"], 60);
+
+  logger.info("Calling tower /apply via docker network (no host port exposure)...");
+  await callTowerApply(intent, dataDir);
+}
+
+function buildBootstrapCompose(dataDir: string): string {
+  return `version: "3.8"
+
+services:
+  tower:
+    image: dldc/tower:${denoJson.version}
+    environment:
+      - TOWER_DATA_DIR=${dataDir}
+    volumes:
+      - ${dataDir}:/var/infra
+      - /var/run/docker.sock:/var/run/docker.sock
+    container_name: tower
+    networks:
+      - tower_bootstrap
+    restart: unless-stopped
+
+networks:
+  tower_bootstrap:
+    name: tower_bootstrap
+`;
+}
+
+async function callTowerApply(intent: Intent, dataDir: string): Promise<void> {
+  const tempIntentPath = `${dataDir}/.intent.bootstrap.json`;
+  await writeTextFile(tempIntentPath, JSON.stringify(intent));
+
+  const cmd = [
+    "docker",
+    "run",
+    "--rm",
+    "--network",
+    "tower_bootstrap",
+    "-v",
+    `${tempIntentPath}:/intent.json:ro`,
+    "curlimages/curl:8.1.2",
+    "-sS",
+    "-X",
+    "POST",
+    "-H",
+    "Content-Type: application/json",
+    "--data-binary",
+    "@/intent.json",
+    "http://tower:3100/apply",
+  ];
+
+  await execOrThrow(cmd);
+  logger.info("✓ /apply completed");
 }
 
 /**

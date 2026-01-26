@@ -4,9 +4,14 @@
  * Coordinates the full deployment flow from intent to running services.
  */
 
-import type { HealthCheck, Intent } from "@dldc/tower/types";
+import type { Credentials, Intent } from "@dldc/tower/types";
+import { DEFAULT_DATA_DIR } from "../config.ts";
+import { generateCaddyJson } from "../generators/caddy.ts";
+import { readJsonFile, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
+import { loadCaddyConfig } from "./caddyAdmin.ts";
 import { validateDns } from "./dns.ts";
+import type { ResolvedService } from "./types.ts";
 import { validateIntent } from "./validator.ts";
 
 /**
@@ -34,37 +39,6 @@ function normalizeLocalRegistry(image: string, intent: Intent): string {
   return rewriteRegistryToInternal(withDomain, intent);
 }
 
-/** * Represents a resolved service (infrastructure or application)
- */
-interface ResolvedService {
-  /** Service name */
-  name: string;
-
-  /** Service type: infrastructure or user-defined application */
-  type: "infra" | "app";
-
-  /** Primary domain */
-  domain: string;
-
-  /** Listening port */
-  port: number;
-
-  /** Version (semver, exact version, or digest) */
-  version: string;
-
-  /** Docker image reference */
-  image: string;
-
-  /** Non-sensitive environment variables */
-  env?: Record<string, string>;
-
-  /** Sensitive environment variables */
-  secrets?: Record<string, string>;
-
-  /** Health check configuration */
-  healthCheck?: HealthCheck;
-}
-
 /** * Apply deployment intent
  *
  * Steps:
@@ -86,8 +60,11 @@ export async function apply(intent: Intent): Promise<void> {
   const validatedIntent = validateIntent(intent);
   logger.info("✓ Intent validated");
 
+  const dataDir = validatedIntent.dataDir ?? DEFAULT_DATA_DIR;
+  const credentials = await loadCredentials(dataDir);
+
   // Step 2: Resolve services
-  const services = resolveServices(validatedIntent);
+  const services = resolveServices(validatedIntent, credentials);
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
   // Step 4: Validate DNS for all domains (naive parallel check)
@@ -96,6 +73,15 @@ export async function apply(intent: Intent): Promise<void> {
 
   // TODO: Implement remaining steps
   // See BLUEPRINT.md "Apply Flow" section for detailed steps
+
+  // Step 5: Generate Caddy JSON config from services
+  const caddyJson = generateCaddyJson(services, validatedIntent.adminEmail);
+  await writeTextFile(`${dataDir}/Caddy.json`, caddyJson);
+  logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
+
+  // Step 6: Validate and load config via Caddy admin API (atomic on success)
+  await loadCaddyConfig(caddyJson);
+  logger.info("✓ Reloaded Caddy via admin API");
 
   const appCount = services.filter((s) => s.type === "app").length;
   logger.info(`Deploying ${appCount} app(s)`);
@@ -116,7 +102,7 @@ function collectDomains(services: ResolvedService[]): string[] {
  * consistent structure for downstream processing (semver resolution, composition
  * generation, etc.).
  */
-function resolveServices(intent: Intent): ResolvedService[] {
+function resolveServices(intent: Intent, credentials: Credentials): ResolvedService[] {
   const services: ResolvedService[] = [];
 
   // Add infrastructure services
@@ -136,6 +122,15 @@ function resolveServices(intent: Intent): ResolvedService[] {
     port: 5000,
     version: "latest",
     image: "registry:2",
+    upstreamName: "registry",
+    upstreamPort: 5000,
+    authPolicy: "basic_write_only",
+    authBasicUsers: [
+      {
+        username: credentials.registry.username,
+        passwordHash: credentials.registry.password_hash,
+      },
+    ],
   });
 
   services.push({
@@ -145,6 +140,15 @@ function resolveServices(intent: Intent): ResolvedService[] {
     port: 3000,
     version: intent.tower.version,
     image: `dldc/tower:${intent.tower.version}`,
+    upstreamName: "tower",
+    upstreamPort: 3100,
+    authPolicy: "basic_all",
+    authBasicUsers: [
+      {
+        username: credentials.tower.username,
+        passwordHash: credentials.tower.password_hash,
+      },
+    ],
     env: {
       OTEL_DENO: "true",
       OTEL_DENO_CONSOLE: "capture",
@@ -158,6 +162,9 @@ function resolveServices(intent: Intent): ResolvedService[] {
     port: 3000,
     version: intent.otel.version,
     image: `grafana/otel-lgtm:${intent.otel.version}`,
+    upstreamName: "otel-lgtm",
+    upstreamPort: 3000,
+    authPolicy: "none",
   });
 
   // Add user-defined apps
@@ -170,6 +177,9 @@ function resolveServices(intent: Intent): ResolvedService[] {
       port: app.port ?? 3000,
       version: app.image,
       image,
+      upstreamName: app.name,
+      upstreamPort: app.port ?? 3000,
+      authPolicy: "none",
       env: app.env,
       secrets: app.secrets,
       healthCheck: app.healthCheck,
@@ -177,6 +187,12 @@ function resolveServices(intent: Intent): ResolvedService[] {
   }
 
   return services;
+}
+
+async function loadCredentials(dataDir: string): Promise<Credentials> {
+  const path = `${dataDir}/credentials.json`;
+  logger.info("Loading credentials from", path);
+  return await readJsonFile<Credentials>(path);
 }
 
 /**
