@@ -6,6 +6,7 @@
 
 import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
+import { apply } from "../core/applier.ts";
 import type { Credentials, Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
@@ -38,11 +39,14 @@ export async function runInit(): Promise<void> {
 
   // Step 4: Generate initial intent
   logger.info("");
-  generateInitialIntent(config);
+  const intent = generateInitialIntent(config);
   logger.info("✓ Initial intent generated");
 
+  // Step 5: Apply initial stack
+  logger.info("");
+  await applyInitialStack(intent);
+
   // TODO: Implement remaining steps
-  // 5. applyInitialStack()
   // 6. waitForHealthy()
   // 7. printSummary()
 
@@ -274,4 +278,12 @@ function generateInitialIntent(config: {
     },
     apps: [], // Empty initially - apps added via deployments
   };
+}
+
+/**
+ * Apply the initial Tower stack
+ */
+async function applyInitialStack(intent: Intent): Promise<void> {
+  logger.info("Applying initial stack...");
+  await apply(intent);
 }

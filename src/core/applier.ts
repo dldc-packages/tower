@@ -21,8 +21,11 @@ import { logger } from "../utils/logger.ts";
  * 8. Reload Caddy
  * 9. Save applied-intent.json
  */
-export function apply(intent: Intent): void {
+export async function apply(intent: Intent): Promise<void> {
   logger.info("🚀 Starting deployment");
+
+  // Placeholder await to satisfy async contract until implementation is added
+  await Promise.resolve();
 
   // TODO: Implement full apply flow
   // See BLUEPRINT.md "Apply Flow" section for detailed steps
