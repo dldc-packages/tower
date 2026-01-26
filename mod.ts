@@ -7,6 +7,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
+import denoJson from "./deno.json" with { type: "json" };
 
 async function main() {
   const args = parseArgs(Deno.args, {
@@ -23,7 +24,7 @@ async function main() {
   const command = args._[0] as string | undefined;
 
   if (args.version) {
-    console.log("Tower v0.1.0");
+    console.log(`Tower v${denoJson.version}`);
     Deno.exit(0);
   }
 
