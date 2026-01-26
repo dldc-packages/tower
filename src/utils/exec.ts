@@ -121,7 +121,7 @@ export async function caddyReload(): Promise<void> {
 /**
  * Validate Caddyfile syntax
  */
-export async function caddyValidate(caddyfile: string): Promise<void> {
+export function caddyValidate(caddyfile: string): void {
   // Note: Validation happens in container
   // We could copy file to temp location and validate, or use docker exec
   // TODO: Implement proper validation

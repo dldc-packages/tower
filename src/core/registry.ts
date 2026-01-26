@@ -35,7 +35,7 @@ export async function listTags(
   const url = `${client.baseUrl}/v2/${repository}/tags/list`;
   const headers = client.username && client.password
     ? { Authorization: basicAuth(client.username, client.password) }
-    : {};
+    : undefined;
 
   try {
     const response = await getJson<{ tags: string[] }>(url, headers);

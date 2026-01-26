@@ -33,7 +33,7 @@ export async function request(url: string, options: HttpOptions = {}): Promise<R
     const response = await fetch(url, {
       method,
       headers,
-      body,
+      body: body as BodyInit | null | undefined,
       signal: controller.signal,
     });
 

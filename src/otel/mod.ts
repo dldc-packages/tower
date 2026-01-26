@@ -1,50 +1,15 @@
 /**
  * OpenTelemetry integration
  *
- * OTEL tracer setup and span management for observability.
+ * Deno has native OpenTelemetry support. This module re-exports the
+ * OpenTelemetry API for use throughout the application.
+ *
+ * To enable OTEL collection:
+ * - Set OTEL_DENO=true environment variable
+ * - Optionally set OTEL_EXPORTER_OTLP_ENDPOINT (default: http://localhost:4318)
+ *
+ * See: https://docs.deno.com/runtime/fundamentals/open_telemetry/
  */
 
-import { logger } from "../utils/logger.ts";
-
-/**
- * Initialize OTEL tracer
- */
-export function initTracer(): void {
-  // TODO: Configure OTEL SDK
-  // TODO: Set up OTLP exporter to otel-lgtm:4318
-  logger.debug("OTEL tracer initialization (placeholder)");
-}
-
-/**
- * Create a span for an operation
- */
-export function startSpan(_name: string): Span {
-  // TODO: Create actual OTEL span
-  return new PlaceholderSpan();
-}
-
-/**
- * Span interface
- */
-export interface Span {
-  setAttributes(attributes: Record<string, string | number | boolean>): void;
-  addEvent(name: string, attributes?: Record<string, unknown>): void;
-  end(): void;
-}
-
-/**
- * Placeholder span implementation
- */
-class PlaceholderSpan implements Span {
-  setAttributes(_attributes: Record<string, string | number | boolean>): void {
-    // TODO: Implement
-  }
-
-  addEvent(_name: string, _attributes?: Record<string, unknown>): void {
-    // TODO: Implement
-  }
-
-  end(): void {
-    // TODO: Implement
-  }
-}
+export { context, SpanStatusCode, trace } from "@opentelemetry/api";
+export type { Span, Tracer } from "@opentelemetry/api";

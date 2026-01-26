@@ -6,10 +6,6 @@
 
 import { logger } from "../utils/logger.ts";
 
-export interface InitOptions {
-  // Future: support non-interactive mode with flags
-}
-
 /**
  * Run Tower initialization flow
  *
@@ -20,7 +16,7 @@ export interface InitOptions {
  * 4. Bootstrap the stack (apply initial config)
  * 5. Print summary and credentials
  */
-export async function runInit(_options?: InitOptions): Promise<void> {
+export function runInit(): void {
   logger.info("🗼 Tower Initialization");
   logger.info("");
 
@@ -40,7 +36,7 @@ export async function runInit(_options?: InitOptions): Promise<void> {
 /**
  * Check if Docker and Docker Compose are installed
  */
-async function checkPrerequisites(): Promise<void> {
+function _checkPrerequisites(): void {
   // TODO: Check docker --version
   // TODO: Check docker compose version
   // TODO: Check permissions for /var/run/docker.sock
@@ -50,12 +46,12 @@ async function checkPrerequisites(): Promise<void> {
 /**
  * Prompt user for Tower configuration
  */
-async function promptConfiguration(): Promise<{
+function _promptConfiguration(): {
   adminEmail: string;
   towerDomain: string;
   registryDomain: string;
   otelDomain: string;
-}> {
+} {
   // TODO: Use @std/cli/prompt or similar
   // TODO: Validate domains (basic format check)
   throw new Error("Not implemented");
@@ -64,10 +60,10 @@ async function promptConfiguration(): Promise<{
 /**
  * Generate random credentials and hash them
  */
-async function generateCredentials(): Promise<{
+function _generateCredentials(): {
   towerPassword: string;
   registryPassword: string;
-}> {
+} {
   // TODO: Generate secure random passwords
   // TODO: Hash with bcrypt
   // TODO: Write to /var/infra/credentials.json

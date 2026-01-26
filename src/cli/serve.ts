@@ -47,7 +47,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
 /**
  * Handle POST /apply endpoint
  */
-async function handleApply(_req: Request): Promise<Response> {
+function _handleApply(_req: Request): Response {
   // TODO:
   // 1. Authenticate (Basic Auth)
   // 2. Parse intent from body
@@ -60,7 +60,7 @@ async function handleApply(_req: Request): Promise<Response> {
 /**
  * Handle POST /refresh endpoint
  */
-async function handleRefresh(_req: Request): Promise<Response> {
+function _handleRefresh(_req: Request): Response {
   // TODO:
   // 1. Authenticate
   // 2. Load current intent from disk
@@ -73,7 +73,7 @@ async function handleRefresh(_req: Request): Promise<Response> {
 /**
  * Handle GET /status endpoint
  */
-async function handleStatus(_req: Request): Promise<Response> {
+function _handleStatus(_req: Request): Response {
   // TODO:
   // 1. Authenticate
   // 2. Load applied-intent.json

@@ -25,7 +25,7 @@ export interface ApplyOptions {
  * 8. Reload Caddy
  * 9. Save applied-intent.json
  */
-export async function apply(intent: Intent, options: ApplyOptions): Promise<void> {
+export function apply(intent: Intent, options: ApplyOptions): void {
   logger.info("🚀 Starting deployment");
 
   // TODO: Implement full apply flow
@@ -39,7 +39,7 @@ export async function apply(intent: Intent, options: ApplyOptions): Promise<void
 /**
  * Resolve semver ranges in intent to immutable digests
  */
-async function resolveSemver(_intent: Intent): Promise<Map<string, string>> {
+function _resolveSemver(_intent: Intent): Map<string, string> {
   // TODO:
   // 1. Parse image refs
   // 2. For each with semver range:
@@ -54,7 +54,7 @@ async function resolveSemver(_intent: Intent): Promise<Map<string, string>> {
 /**
  * Validate DNS propagation for new domains
  */
-async function validateDns(_newDomains: string[]): Promise<void> {
+function _validateDns(_newDomains: string[]): void {
   // TODO:
   // 1. Resolve each domain
   // 2. Check if IP matches server
@@ -66,7 +66,7 @@ async function validateDns(_newDomains: string[]): Promise<void> {
 /**
  * Wait for all services to report healthy
  */
-async function waitForHealthy(_services: string[], _timeoutSeconds: number): Promise<void> {
+function _waitForHealthy(_services: string[], _timeoutSeconds: number): void {
   // TODO:
   // 1. Poll docker inspect for health status
   // 2. Wait until all services are "healthy"

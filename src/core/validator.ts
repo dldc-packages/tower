@@ -52,7 +52,7 @@ export function validateIntent(data: unknown): Intent {
     names.add(app.name);
   }
 
-  return data as Intent;
+  return data as unknown as Intent;
 }
 
 function validateTowerSection(tower: unknown): void {
