@@ -8,6 +8,7 @@ import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
 import denoJson from "../../deno.json" with { type: "json" };
 import { apply } from "../core/applier.ts";
+import { waitForHealthy } from "../core/health.ts";
 import type { Credentials, Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
@@ -47,31 +48,14 @@ export async function runInit(): Promise<void> {
   logger.info("");
   await applyInitialStack(intent);
 
-  // TODO: Implement remaining steps
-  // 6. waitForHealthy()
-  // 7. printSummary()
+  // Step 6: Wait for services to be healthy
+  logger.info("");
+  logger.info("Waiting for services to start...");
+  await waitForHealthy(["tower", "caddy", "registry", "grafana", "loki", "tempo"], 120);
 
+  // Step 7: Print final summary
   logger.info("");
-  logger.info("✓ Initialization complete!");
-  logger.info("");
-  logger.info("Configuration:");
-  logger.info(`  Admin email: ${config.adminEmail}`);
-  logger.info(`  Tower domain: ${config.towerDomain}`);
-  logger.info(`  Registry domain: ${config.registryDomain}`);
-  logger.info(`  OTEL domain: ${config.otelDomain}`);
-  logger.info("");
-  logger.info("⚠️  IMPORTANT: Save these credentials securely!");
-  logger.info("");
-  logger.info("Tower API credentials (for deployments):");
-  logger.info(`  Username: tower`);
-  logger.info(`  Password: ${credentials.towerPassword}`);
-  logger.info("");
-  logger.info("Registry credentials (for CI/CD image push):");
-  logger.info(`  Username: ci`);
-  logger.info(`  Password: ${credentials.registryPassword}`);
-  logger.info("");
-  logger.warn("Remaining initialization steps not yet implemented");
-  logger.info("See BLUEPRINT.md for implementation details");
+  printSummary(config, credentials, intent);
 }
 
 /**
@@ -287,4 +271,53 @@ function generateInitialIntent(config: {
 async function applyInitialStack(intent: Intent): Promise<void> {
   logger.info("Applying initial stack...");
   await apply(intent);
+}
+
+/**
+ * Print initialization summary
+ */
+function printSummary(
+  config: {
+    adminEmail: string;
+    towerDomain: string;
+    registryDomain: string;
+    otelDomain: string;
+  },
+  credentials: {
+    towerPassword: string;
+    registryPassword: string;
+  },
+  intent: Intent,
+): void {
+  logger.info("✓ Initialization complete!");
+  logger.info("");
+  logger.info("Configuration:");
+  logger.info(`  Admin email: ${config.adminEmail}`);
+  logger.info(`  Tower domain: ${config.towerDomain}`);
+  logger.info(`  Registry domain: ${config.registryDomain}`);
+  logger.info(`  OTEL domain: ${config.otelDomain}`);
+  logger.info("");
+  logger.info("Intent:");
+  logger.info(JSON.stringify(intent, null, 2));
+  logger.info("");
+  logger.info("⚠️  IMPORTANT: Save these credentials securely!");
+  logger.info("");
+  logger.info("Tower API credentials (for deployments):");
+  logger.info(`  Username: tower`);
+  logger.info(`  Password: ${credentials.towerPassword}`);
+  logger.info("");
+  logger.info("Registry credentials (for CI/CD image push):");
+  logger.info(`  Username: ci`);
+  logger.info(`  Password: ${credentials.registryPassword}`);
+  logger.info("");
+  logger.info("Next steps:");
+  logger.info("  1. Configure DNS records to point to this server:");
+  logger.info(`     - ${config.towerDomain} → this server's IP`);
+  logger.info(`     - ${config.registryDomain} → this server's IP`);
+  logger.info(`     - ${config.otelDomain} → this server's IP`);
+  logger.info("  2. Wait for Let's Encrypt SSL certificates to be issued (may take a few minutes)");
+  logger.info("  3. Access Tower API at https://" + config.towerDomain);
+  logger.info("  4. Access Grafana at https://" + config.otelDomain);
+  logger.info("");
+  logger.info("For more information, visit: https://jsr.io/@dldc/tower");
 }
