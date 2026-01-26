@@ -231,7 +231,7 @@ async function handleStatus(req: Request, dataDir: string): Promise<Response> {
 
   try {
     // Load applied intent
-    const appliedPath = `${dataDir}/applied-intent.json`;
+    const appliedPath = `${dataDir}/intent.json`;
     let appliedIntent: AppliedIntent | undefined;
 
     if (await fileExists(appliedPath)) {

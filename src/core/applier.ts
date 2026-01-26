@@ -19,7 +19,7 @@ import { logger } from "../utils/logger.ts";
  * 6. Apply via docker compose up
  * 7. Wait for health checks
  * 8. Reload Caddy
- * 9. Save applied-intent.json
+ * 9. Save intent.json
  */
 export async function apply(intent: Intent): Promise<void> {
   logger.info("🚀 Starting deployment");
