@@ -13,6 +13,7 @@ routing through Caddy, and built-in observability.
 - **TLS termination** - Automatic HTTPS via Caddy + Let's Encrypt
 - **Built-in observability** - Grafana OTEL-LGTM stack (traces, logs, metrics)
 - **Local registry** - Push from CI, pull during deployment
+- **Portable intents** - Use `registry://` prefix to stay hostname-agnostic
 - **GitOps ready** - POST intent from CI/CD pipelines
 
 ## Architecture
@@ -67,7 +68,7 @@ Create an `intent.json`:
   "apps": [
     {
       "name": "api",
-      "image": "registry.example.com/api:^1.2.0",
+      "image": "registry://api:^1.2.0",
       "domain": "api.example.com",
       "port": 3000,
       "env": {
@@ -84,6 +85,11 @@ Create an `intent.json`:
   ]
 }
 ```
+
+**Portable registry prefix:** You can keep intents portable by using the `registry://` prefix in
+`image` fields. Tower replaces `registry://` with the registry domain from your intent and rewrites
+pulls to the in-cluster endpoint `registry:5000` during deployment, so Compose services fetch images
+via the internal registry service without relying on external DNS/TLS.
 
 Apply the deployment:
 

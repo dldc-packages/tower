@@ -8,6 +8,31 @@ import type { HealthCheck, Intent } from "@dldc/tower/types";
 import { logger } from "../utils/logger.ts";
 import { validateIntent } from "./validator.ts";
 
+/**
+ * Rewrite image registry host to the internal registry service when it points
+ * to the registry defined in the intent.
+ */
+function rewriteRegistryToInternal(image: string, intent: Intent): string {
+  const prefix = `${intent.registry.domain}/`;
+  if (image.startsWith(prefix)) {
+    return image.replace(prefix, "registry:5000/");
+  }
+  return image;
+}
+
+/**
+ * Normalize image refs that target the local registry by accepting the
+ * portable prefix "registry://" and replacing it with the registry domain from
+ * the intent. The result is then rewritten to the in-cluster registry service.
+ */
+function normalizeLocalRegistry(image: string, intent: Intent): string {
+  const localPrefix = "registry://";
+  const withDomain = image.startsWith(localPrefix)
+    ? `${intent.registry.domain}/${image.slice(localPrefix.length)}`
+    : image;
+  return rewriteRegistryToInternal(withDomain, intent);
+}
+
 /** * Represents a resolved service (infrastructure or application)
  */
 interface ResolvedService {
@@ -42,15 +67,16 @@ interface ResolvedService {
 /** * Apply deployment intent
  *
  * Steps:
- * 1. ✓ Validate intent
- * 2. Resolve semver ranges to digests
- * 3. Validate DNS for new domains
- * 4. Generate docker-compose.yml and Caddyfile
- * 5. Validate generated configs
- * 6. Apply via docker compose up
- * 7. Wait for health checks
- * 8. Reload Caddy
- * 9. Save intent.json
+ * 1. Validate intent
+ * 2. Resolve services (infra + apps)
+ * 3. Resolve semver ranges to digests
+ * 4. Validate DNS for new domains
+ * 5. Generate docker-compose.yml and Caddyfile
+ * 6. Validate generated configs
+ * 7. Apply via docker compose up
+ * 8. Wait for health checks
+ * 9. Reload Caddy
+ * 10. Save intent.json
  */
 export function apply(intent: Intent): void {
   logger.info("🚀 Starting deployment");
@@ -123,13 +149,14 @@ function resolveServices(intent: Intent): ResolvedService[] {
 
   // Add user-defined apps
   for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
     services.push({
       name: app.name,
       type: "app",
       domain: app.domain,
       port: app.port ?? 3000,
       version: app.image,
-      image: app.image,
+      image,
       env: app.env,
       secrets: app.secrets,
       healthCheck: app.healthCheck,
