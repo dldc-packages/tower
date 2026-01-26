@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+BLUEPRINT.md
+
+# Editor
+.vscode
+.idea
+*.swp
+
+# Test files
+*.test.ts
+test-data/
+
+# Build outputs
+dist/
+build/
+
+# Examples
+examples/
+
+# OS
+.DS_Store
+Thumbs.db

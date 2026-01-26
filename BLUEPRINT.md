@@ -4,7 +4,10 @@
 
 ## Overview
 
-Tower is a declarative GitOps deployment orchestration tool for single-server infrastructure. Tower itself runs as a service inside the Docker Compose stack (dogfooding). Deployments are declarative via intent.json, with automatic semver→digest resolution, zero-downtime routing through Caddy, and built-in observability.
+Tower is a declarative GitOps deployment orchestration tool for single-server infrastructure. Tower
+itself runs as a service inside the Docker Compose stack (dogfooding). Deployments are declarative
+via intent.json, with automatic semver→digest resolution, zero-downtime routing through Caddy, and
+built-in observability.
 
 - Language: TypeScript/Deno
 - Package: JSR (@dldc/tower)
@@ -65,6 +68,7 @@ Tower is a declarative GitOps deployment orchestration tool for single-server in
 ```
 
 **Notes:**
+
 - All services run in Docker Compose on a shared `app_network` bridge network.
 - Tower container mounts `/var/run/docker.sock` to control Docker and run `docker compose` commands.
 - Registry stores images locally; CI pushes images, Docker Compose pulls during deployment.
@@ -86,6 +90,7 @@ Tower is a declarative GitOps deployment orchestration tool for single-server in
 ```
 
 **Docker volumes/binds:**
+
 - `/var/infra:/var/infra` bind-mounted into Tower container
 - `/var/infra/Caddyfile:/etc/caddy/Caddyfile:ro` bind-mounted into Caddy container
 - `/var/run/docker.sock:/var/run/docker.sock` into Tower container
@@ -99,42 +104,44 @@ Minimal intent.json structure for deployments:
 
 ```typescript
 interface Intent {
-  version: "1"
-  adminEmail: string                    // For Let's Encrypt ACME
+  version: "1";
+  adminEmail: string; // For Let's Encrypt ACME
   tower: {
-    version: string                     // e.g., "0.1.0"
-    domain: string                      // e.g., "tower.example.com"
-  }
+    version: string; // e.g., "0.1.0"
+    domain: string; // e.g., "tower.example.com"
+  };
   registry: {
-    domain: string                      // e.g., "registry.example.com"
-  }
+    domain: string; // e.g., "registry.example.com"
+  };
   otel: {
-    version: string                     // e.g., "latest"
-    domain: string                      // e.g., "otel.example.com"
-  }
+    version: string; // e.g., "latest"
+    domain: string; // e.g., "otel.example.com"
+  };
   apps: Array<{
-    name: string                        // Unique app identifier
-    image: string                       // e.g., "registry.example.com/api:^1.2.0"
-    domain: string                      // e.g., "api.example.com"
-    port: number                        // App listening port (default: 3000)
-    env?: Record<string, string>        // Environment variables
-    secrets?: Record<string, string>    // Secret env vars
+    name: string; // Unique app identifier
+    image: string; // e.g., "registry.example.com/api:^1.2.0"
+    domain: string; // e.g., "api.example.com"
+    port: number; // App listening port (default: 3000)
+    env?: Record<string, string>; // Environment variables
+    secrets?: Record<string, string>; // Secret env vars
     healthCheck?: {
-      path?: string                     // HTTP path (e.g., "/health")
-      port?: number                     // Health check port
-      interval?: number                 // Seconds (default: 10)
-      timeout?: number                  // Seconds (default: 5)
-      retries?: number                  // Count (default: 3)
-    }
-  }>
+      path?: string; // HTTP path (e.g., "/health")
+      port?: number; // Health check port
+      interval?: number; // Seconds (default: 10)
+      timeout?: number; // Seconds (default: 5)
+      retries?: number; // Count (default: 3)
+    };
+  }>;
 }
 ```
 
 **Key Points:**
+
 - `tower`, `registry`, and `otel` are required infrastructure sections
 - `apps` array contains deployable services (can be empty initially)
 - `image` uses semver ranges (e.g., `^1.2.0`) which Tower resolves to immutable digests
-- `env` and `secrets` are both plain-text in intent.json (passed to containers as environment variables)
+- `env` and `secrets` are both plain-text in intent.json (passed to containers as environment
+  variables)
 - `healthCheck` is optional; defaults shown above
 
 ---
@@ -156,7 +163,8 @@ interface Intent {
 }
 ```
 
-Generated during `tower init` and never modified. Passwords printed once during init; store securely in CI secrets.
+Generated during `tower init` and never modified. Passwords printed once during init; store securely
+in CI secrets.
 
 ---
 
@@ -237,34 +245,36 @@ volumes:
 
 `tower init` (CLI run once on the host) performs one-time bootstrap:
 
-1) **Prompts for configuration**
+1. **Prompts for configuration**
    - Admin email (for Let's Encrypt ACME notifications)
    - Tower domain (e.g., `tower.example.com`)
    - Registry domain (e.g., `registry.example.com`)
    - OTEL domain (e.g., `otel.example.com`)
 
-2) **Checks/installs prerequisites**
+2. **Checks/installs prerequisites**
    - Docker Engine and Docker Compose plugin
    - Creates `/var/infra` directory structure
 
-3) **Generates initial intent.json and credentials**
+3. **Generates initial intent.json and credentials**
    - Creates `intent.json` with base configuration
-   - Generates random passwords for Tower and Registry (stored as bcrypt hashes in `/var/infra/credentials.json`)
+   - Generates random passwords for Tower and Registry (stored as bcrypt hashes in
+     `/var/infra/credentials.json`)
 
-4) **Bootstraps the stack**
+4. **Bootstraps the stack**
    - Calls internal apply logic with initial intent.json
    - Generates docker-compose.yml and Caddyfile
    - Runs `docker compose up -d`
    - Waits for all services to be healthy
 
-5) **Prints summary**
+5. **Prints summary**
    - Tower password (for `/apply` endpoint)
    - Registry password (for CI `docker push`)
    - Base intent.json
    - Example commands for next steps
    - Link to Grafana dashboard
 
-After bootstrap, Tower is fully operational. All future deployments POST to `https://<tower-domain>/apply`.
+After bootstrap, Tower is fully operational. All future deployments POST to
+`https://<tower-domain>/apply`.
 
 ---
 
@@ -272,27 +282,28 @@ After bootstrap, Tower is fully operational. All future deployments POST to `htt
 
 Tower is an HTTP server that processes deployment requests sequentially (single worker pattern).
 
-1) **Validate:** Parse and validate intent.json against schema
-2) **Resolve:** Query registry API for each app; match semver ranges to tags; get image digests
-3) **DNS Check:** Extract new domains; validate DNS propagation (simple check via system resolver)
-4) **Generate:** 
+1. **Validate:** Parse and validate intent.json against schema
+2. **Resolve:** Query registry API for each app; match semver ranges to tags; get image digests
+3. **DNS Check:** Extract new domains; validate DNS propagation (simple check via system resolver)
+4. **Generate:**
    - Compose services for each app (merged with infra services)
    - Caddyfile routes for all domains
-5) **Validate configs:**
+5. **Validate configs:**
    - `docker compose config` to lint generated compose
    - `caddy validate` on generated Caddyfile
-6) **Apply:**
+6. **Apply:**
    - Write new docker-compose.yml and Caddyfile
    - Run `docker compose up -d` (idempotent: updates changed, leaves unchanged alone)
-7) **Health checks:**
+7. **Health checks:**
    - Wait for Docker healthchecks to report `healthy` for all services
    - If timeout → deployment fails (services stay at previous state)
-8) **Reload Caddy:**
+8. **Reload Caddy:**
    - `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`
-9) **Persist:**
+9. **Persist:**
    - Save applied-intent.json with resolved digests and timestamp
-10) **Telemetry:**
-   - Emit OTEL spans for each step
+10. **Telemetry:**
+
+- Emit OTEL spans for each step
 
 ---
 
@@ -301,18 +312,21 @@ Tower is an HTTP server that processes deployment requests sequentially (single 
 Tower exposes three endpoints (all require Basic Auth):
 
 ### POST /apply
+
 - **Body:** `intent.json` (JSON)
 - **Response:** Streaming text logs + final status
 - **Status codes:** 200 (success), 500 (failure)
 - Validates, resolves semver, generates configs, applies via docker compose, reloads Caddy
 
 ### POST /refresh
+
 - **Body:** None (uses current intent from disk)
 - **Response:** Streaming text logs + final status
 - **Status codes:** 200 (success), 500 (failure)
 - Re-resolves semver for current intent; applies only if digests changed
 
 ### GET /status
+
 - **Response:** Plain text summary
 - **Status codes:** 200 (success)
 - Shows: applied intent timestamp, running services, health status, domains/routes
@@ -324,6 +338,7 @@ Tower exposes three endpoints (all require Basic Auth):
 ## Generators
 
 ### Compose Generator (`src/generators/compose.ts`)
+
 - Input: Intent object
 - Output: Complete docker-compose.yml with infra + app services
 - Infra services (Caddy, Tower, Registry, OTEL-LGTM) use fixed configurations
@@ -335,6 +350,7 @@ Tower exposes three endpoints (all require Basic Auth):
   - `restart: unless-stopped`
 
 ### Caddy Generator (`src/generators/caddy.ts`)
+
 - Input: Intent object + current Caddyfile (to detect new domains)
 - Output: Complete Caddyfile with global config and route blocks
 - Global config: `email` directive from intent.adminEmail (for Let's Encrypt)
@@ -350,6 +366,7 @@ Tower exposes three endpoints (all require Basic Auth):
 ## Docker Registry Authentication
 
 **For CI/CD (pushing):**
+
 ```bash
 # Login once
 docker login registry.example.com -u ci -p <password>
@@ -359,10 +376,14 @@ docker push registry.example.com/api:1.2.3
 ```
 
 **For Docker Compose (pulling):**
+
 - Registry is exposed via Caddy without auth requirements on GET requests
-- Docker daemon authenticates using credentials stored in `~/.docker/config.json` from the login above
-- Tower container can pull images directly via Docker DNS (`registry:5000`) within the compose network
-- Note: For internal pulls on the Docker network, no auth needed; external pulls (from host) use Caddy + Basic Auth
+- Docker daemon authenticates using credentials stored in `~/.docker/config.json` from the login
+  above
+- Tower container can pull images directly via Docker DNS (`registry:5000`) within the compose
+  network
+- Note: For internal pulls on the Docker network, no auth needed; external pulls (from host) use
+  Caddy + Basic Auth
 
 ---
 
@@ -377,7 +398,8 @@ Before deploying a new domain, Tower validates DNS propagation:
 3. Timeout: 30 seconds per domain
 4. If validation fails: abort deployment with error message
 
-Simple approach: no external APIs, just system resolver. User must ensure DNS is pre-configured before deploy.
+Simple approach: no external APIs, just system resolver. User must ensure DNS is pre-configured
+before deploy.
 
 ---
 
@@ -387,7 +409,8 @@ Simple approach: no external APIs, just system resolver. User must ensure DNS is
 - **Docker backoff:** Exponential backoff on container crashes
 - **Health checks:** Tower waits for all containers to report `healthy` state
 - **Timeout:** Configurable per app (default: 30s)
-- **Zero-downtime routing:** Caddy keeps old containers alive during health-check window; routes only to healthy backends
+- **Zero-downtime routing:** Caddy keeps old containers alive during health-check window; routes
+  only to healthy backends
   - If new version fails health checks, old version continues serving traffic
   - Docker restart policies ensure failed containers retry automatically
 
@@ -396,11 +419,13 @@ Simple approach: no external APIs, just system resolver. User must ensure DNS is
 ## Security
 
 - **Secrets:** Passed as environment variables to containers (from intent.json)
-- **Logs:** Secrets redacted in all logs (Tower never logs env vars containing "secret", "password", "token", etc.)
+- **Logs:** Secrets redacted in all logs (Tower never logs env vars containing "secret", "password",
+  "token", etc.)
 - **Auth:** Basic Auth with bcrypt hashes; credentials stored in `/var/infra/credentials.json`
 - **Socket access:** `/var/run/docker.sock` mounted only in Tower container
 - **Bind mounts:** Limited to `/var/infra`
-- **Network:** All services communicate via internal Docker network; only Caddy exposes ports to host
+- **Network:** All services communicate via internal Docker network; only Caddy exposes ports to
+  host
 
 ---
 
@@ -483,6 +508,7 @@ src/
 ```
 
 **Notes:**
+
 - `tower`, `registry`, `otel` are required infrastructure sections
 - `apps` can be empty initially or contain multiple services
 - `image` uses semver ranges (e.g., `^1.2.0`, `~1.2.3`, `1.2.*`)
@@ -505,14 +531,14 @@ name: Deploy
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Extract version
         id: version
         run: |
@@ -522,20 +548,20 @@ jobs:
             VERSION="0.0.0-${GITHUB_SHA::7}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Build image
         run: |
           docker build -t registry.example.com/api:${{ steps.version.outputs.version }} .
           docker tag registry.example.com/api:${{ steps.version.outputs.version }} \
             registry.example.com/api:${{ github.sha }}
-      
+
       - name: Push to registry
         run: |
           echo "${{ secrets.REGISTRY_PASSWORD }}" | \
             docker login registry.example.com -u ci --password-stdin
           docker push registry.example.com/api:${{ steps.version.outputs.version }}
           docker push registry.example.com/api:${{ github.sha }}
-      
+
       - name: Generate intent
         run: |
           # TypeScript script to generate intent.json
@@ -543,7 +569,7 @@ jobs:
           deno run -A scripts/generate-intent.ts \
             --app api \
             --version "^${{ steps.version.outputs.version }}"
-      
+
       - name: Deploy to Tower
         run: |
           curl -u tower:${{ secrets.TOWER_PASSWORD }} \
@@ -561,12 +587,14 @@ jobs:
 ### 3. Registry Authentication
 
 **Push (CI/CD):**
+
 ```bash
 docker login registry.example.com -u ci
 # Password from Tower init (saved in CI secrets)
 ```
 
 **Pull (Docker Compose):**
+
 - No authentication required for pulls
 - Registry configured via Caddy with public read access
 - Docker daemon automatically pulls from `registry.example.com` during `docker compose up`
@@ -617,4 +645,3 @@ curl -u tower:PASSWORD https://tower.example.com/status
 8. **Observability:** OTEL tracer, spans, propagation
 9. **Cleanup:** cli/cleanup.ts (registry GC)
 10. **Polish:** docs, examples, JSR publish
-
