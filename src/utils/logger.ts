@@ -1,68 +1,115 @@
 /**
- * Logger utility with secret redaction
+ * Logger utility with secret redaction and pluggable sinks
  *
- * Ensures secrets are never logged (env vars with "secret", "password", "token", etc.)
+ * Default: console only, text format. Extra sinks can be added per use (e.g., stream + console).
  */
 
 type LogLevel = "debug" | "info" | "warn" | "error";
+type LogFormat = "text" | "json";
+
+type LogSink = (entry: LogEntry) => void;
+
+interface LoggerOptions {
+  level?: LogLevel;
+  format?: LogFormat;
+  sinks?: LogSink[];
+}
+
+interface LogEntry {
+  level: LogLevel;
+  format: LogFormat;
+  args: unknown[];
+  message: string;
+  timestamp: Date;
+  payload: {
+    level: LogLevel;
+    time: string;
+    message: string;
+    args: unknown[];
+  };
+}
 
 class Logger {
-  private minLevel: LogLevel = "info";
+  private minLevel: LogLevel;
+  private sinks: LogSink[];
+  private format: LogFormat;
 
-  /**
-   * Set minimum log level
-   */
+  constructor(options: LoggerOptions = {}) {
+    this.minLevel = options.level ?? "info";
+    this.format = options.format ?? "text";
+    this.sinks = options.sinks ?? [createConsoleSink()];
+  }
+
   setLevel(level: LogLevel): void {
     this.minLevel = level;
   }
 
-  /**
-   * Log debug message
-   */
+  getLevel(): LogLevel {
+    return this.minLevel;
+  }
+
   debug(...args: unknown[]): void {
-    if (this.shouldLog("debug")) {
-      console.debug(...this.redact(args));
-    }
+    this.log("debug", args);
   }
 
-  /**
-   * Log info message
-   */
   info(...args: unknown[]): void {
-    if (this.shouldLog("info")) {
-      console.log(...this.redact(args));
-    }
+    this.log("info", args);
   }
 
-  /**
-   * Log warning message
-   */
   warn(...args: unknown[]): void {
-    if (this.shouldLog("warn")) {
-      console.warn(...this.redact(args));
-    }
+    this.log("warn", args);
   }
 
-  /**
-   * Log error message
-   */
   error(...args: unknown[]): void {
-    if (this.shouldLog("error")) {
-      console.error(...this.redact(args));
+    this.log("error", args);
+  }
+
+  private log(level: LogLevel, args: unknown[]): void {
+    if (!this.shouldLog(level)) return;
+
+    const redactedArgs = this.redact(args);
+    const message = this.buildMessage(redactedArgs);
+    const timestamp = new Date();
+
+    const entry: LogEntry = {
+      level,
+      format: this.format,
+      args: redactedArgs,
+      message,
+      timestamp,
+      payload: {
+        level,
+        time: timestamp.toISOString(),
+        message,
+        args: redactedArgs,
+      },
+    };
+
+    for (const sink of this.sinks) {
+      sink(entry);
     }
   }
 
-  /**
-   * Check if level should be logged
-   */
   private shouldLog(level: LogLevel): boolean {
     const levels: LogLevel[] = ["debug", "info", "warn", "error"];
     return levels.indexOf(level) >= levels.indexOf(this.minLevel);
   }
 
-  /**
-   * Redact sensitive information from log arguments
-   */
+  private buildMessage(args: unknown[]): string {
+    return args
+      .map((arg) => {
+        if (typeof arg === "string") return arg;
+        if (typeof arg === "number" || typeof arg === "boolean") return String(arg);
+        if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      })
+      .join(" ");
+  }
+
   private redact(args: unknown[]): unknown[] {
     return args.map((arg) => {
       if (typeof arg === "string") {
@@ -74,18 +121,11 @@ class Logger {
     });
   }
 
-  /**
-   * Redact sensitive patterns in strings
-   */
   private redactString(str: string): string {
-    // Redact patterns like PASSWORD=xxx, TOKEN=xxx, etc.
     const sensitivePattern = /(password|secret|token|key|auth)=[^\s&]*/gi;
     return str.replace(sensitivePattern, "$1=***REDACTED***");
   }
 
-  /**
-   * Redact sensitive keys in objects
-   */
   private redactObject(obj: unknown): unknown {
     if (Array.isArray(obj)) {
       return obj.map((item) => this.redactObject(item));
@@ -108,9 +148,6 @@ class Logger {
     return obj;
   }
 
-  /**
-   * Check if a key name suggests sensitive data
-   */
   private isSensitiveKey(key: string): boolean {
     const lowerKey = key.toLowerCase();
     const sensitiveWords = [
@@ -127,4 +164,38 @@ class Logger {
   }
 }
 
-export const logger = new Logger();
+export function createConsoleSink(): LogSink {
+  return (entry) => {
+    const method = entry.level === "debug"
+      ? "debug"
+      : entry.level === "info"
+      ? "log"
+      : entry.level === "warn"
+      ? "warn"
+      : "error";
+
+    if (entry.format === "json") {
+      console[method](JSON.stringify(entry.payload));
+    } else {
+      console[method](entry.message);
+    }
+  };
+}
+
+export function createStreamSink(
+  write: (line: string) => void,
+  format: LogFormat = "text",
+): LogSink {
+  return (entry) => {
+    const line = format === "json" ? JSON.stringify(entry.payload) : entry.message;
+    write(line);
+  };
+}
+
+export function createLogger(options: LoggerOptions = {}): Logger {
+  return new Logger(options);
+}
+
+export { LogFormat, LoggerOptions, LogLevel, LogSink };
+
+export const logger = createLogger();

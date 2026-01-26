@@ -120,6 +120,12 @@ Example GitHub Actions workflow:
 
 All endpoints require Basic Auth (credentials from `tower init`).
 
+## Logging
+
+- CLI init logs go to stdout only (text).
+- The server duplicates apply/refresh logs to the HTTP stream and to console so they are captured
+  when `OTEL_DENO_CONSOLE=capture` is set.
+
 ## Documentation
 
 - [BLUEPRINT.md](./BLUEPRINT.md) - Complete architecture and implementation specification

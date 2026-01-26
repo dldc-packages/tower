@@ -13,7 +13,7 @@ import type { AppliedIntent, Credentials, DeploymentStatus, Intent } from "../ty
 import { AuthError } from "../utils/errors.ts";
 import { fileExists, readJsonFile } from "../utils/fs.ts";
 import { parseBasicAuth } from "../utils/http.ts";
-import { logger } from "../utils/logger.ts";
+import { createConsoleSink, createLogger, createStreamSink, logger } from "../utils/logger.ts";
 
 export interface ServeOptions {
   port?: number;
@@ -127,25 +127,27 @@ async function handleApply(req: Request, dataDir: string): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-
-      // Helper to send log messages
-      const sendLog = (message: string) => {
-        controller.enqueue(encoder.encode(message + "\n"));
-      };
+      const streamSink = createStreamSink(
+        (line) => controller.enqueue(encoder.encode(line + "\n")),
+      );
+      const streamLogger = createLogger({
+        sinks: [createConsoleSink(), streamSink],
+      });
 
       try {
-        sendLog("🚀 Starting deployment...");
-        sendLog("");
+        streamLogger.info("🚀 Starting deployment...");
+        streamLogger.info("");
 
-        // Apply the intent
         await apply(intent);
 
-        sendLog("");
-        sendLog("✓ Deployment successful");
-        controller.close();
+        streamLogger.info("");
+        streamLogger.info("✓ Deployment successful");
       } catch (error) {
-        sendLog("");
-        sendLog(`❌ Deployment failed: ${error instanceof Error ? error.message : String(error)}`);
+        streamLogger.info("");
+        streamLogger.error(
+          `❌ Deployment failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
         controller.close();
       }
     },
@@ -189,25 +191,29 @@ async function handleRefresh(req: Request, dataDir: string): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-
-      const sendLog = (message: string) => {
-        controller.enqueue(encoder.encode(message + "\n"));
-      };
+      const streamSink = createStreamSink(
+        (line) => controller.enqueue(encoder.encode(line + "\n")),
+      );
+      const streamLogger = createLogger({
+        sinks: [createConsoleSink(), streamSink],
+      });
 
       try {
-        sendLog("🔄 Refreshing deployment...");
-        sendLog("Re-resolving semver ranges...");
-        sendLog("");
+        streamLogger.info("🔄 Refreshing deployment...");
+        streamLogger.info("Re-resolving semver ranges...");
+        streamLogger.info("");
 
         // Apply will re-resolve semver and only update if digests changed
         await apply(intent);
 
-        sendLog("");
-        sendLog("✓ Refresh complete");
-        controller.close();
+        streamLogger.info("");
+        streamLogger.info("✓ Refresh complete");
       } catch (error) {
-        sendLog("");
-        sendLog(`❌ Refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+        streamLogger.info("");
+        streamLogger.error(
+          `❌ Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
         controller.close();
       }
     },
