@@ -7,10 +7,6 @@
 import type { Intent } from "@dldc/tower/types";
 import { logger } from "../utils/logger.ts";
 
-export interface ApplyOptions {
-  dataDir: string;
-}
-
 /**
  * Apply deployment intent
  *
@@ -25,7 +21,7 @@ export interface ApplyOptions {
  * 8. Reload Caddy
  * 9. Save applied-intent.json
  */
-export function apply(intent: Intent, options: ApplyOptions): void {
+export function apply(intent: Intent): void {
   logger.info("🚀 Starting deployment");
 
   // TODO: Implement full apply flow
@@ -33,7 +29,6 @@ export function apply(intent: Intent, options: ApplyOptions): void {
 
   logger.warn("Apply logic not yet implemented");
   logger.info(`Intent: ${intent.apps.length} apps`);
-  logger.info(`Data directory: ${options.dataDir}`);
 }
 
 /**

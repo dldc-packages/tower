@@ -6,7 +6,7 @@
 
 import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
-import type { Credentials } from "../types.ts";
+import type { Credentials, Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
@@ -36,8 +36,12 @@ export async function runInit(): Promise<void> {
   logger.info("");
   const credentials = await generateCredentials();
 
+  // Step 4: Generate initial intent
+  logger.info("");
+  generateInitialIntent(config);
+  logger.info("✓ Initial intent generated");
+
   // TODO: Implement remaining steps
-  // 4. generateInitialIntent()
   // 5. applyInitialStack()
   // 6. waitForHealthy()
   // 7. printSummary()
@@ -243,4 +247,31 @@ function generateSecurePassword(length: number = 32): string {
   return Array.from(values)
     .map((x) => charset[x % charset.length])
     .join("");
+}
+
+/**
+ * Generate initial intent.json configuration
+ */
+function generateInitialIntent(config: {
+  adminEmail: string;
+  towerDomain: string;
+  registryDomain: string;
+  otelDomain: string;
+}): Intent {
+  return {
+    version: "1",
+    adminEmail: config.adminEmail,
+    tower: {
+      version: "0.1.0", // Tower version from deno.json
+      domain: config.towerDomain,
+    },
+    registry: {
+      domain: config.registryDomain,
+    },
+    otel: {
+      version: "latest",
+      domain: config.otelDomain,
+    },
+    apps: [], // Empty initially - apps added via deployments
+  };
 }
