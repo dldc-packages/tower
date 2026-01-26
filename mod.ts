@@ -40,23 +40,11 @@ async function main() {
         break;
       }
 
-      case "apply": {
-        const { runApply } = await import("./src/cli/apply.ts");
-        await runApply();
-        break;
-      }
-
       case "serve": {
         const { runServe } = await import("./src/cli/serve.ts");
         const port = args.port ? parseInt(args.port, 10) : undefined;
         const dataDir = args["data-dir"] as string | undefined;
         await runServe({ port, dataDir });
-        break;
-      }
-
-      case "cleanup": {
-        const { runCleanup } = await import("./src/cli/cleanup.ts");
-        await runCleanup();
         break;
       }
 
@@ -80,9 +68,7 @@ USAGE:
 
 COMMANDS:
   init              Bootstrap Tower infrastructure (one-time setup)
-  apply             Apply deployment from intent.json (reads from stdin)
   serve             Start Tower HTTP server (runs inside container)
-  cleanup           Clean up unused registry images
 
 OPTIONS:
   -h, --help        Show this help message
@@ -94,14 +80,8 @@ EXAMPLES:
   # Bootstrap Tower
   sudo tower init
 
-  # Apply deployment
-  cat intent.json | tower apply
-
   # Start HTTP server
   tower serve --port 3100
-
-  # Clean up old images
-  tower cleanup
 
 For more information, visit: https://jsr.io/@dldc/tower
 `);
