@@ -4,9 +4,11 @@
  * Performs one-time bootstrap of Tower infrastructure.
  */
 
+import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
+import type { Credentials } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
-import { fileExists } from "../utils/fs.ts";
+import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
 /**
@@ -30,19 +32,35 @@ export async function runInit(): Promise<void> {
   logger.info("");
   const config = await promptConfiguration();
 
+  // Step 3: Generate credentials
+  logger.info("");
+  const credentials = await generateCredentials();
+
   // TODO: Implement remaining steps
-  // 3. generateCredentials()
   // 4. generateInitialIntent()
   // 5. applyInitialStack()
   // 6. waitForHealthy()
   // 7. printSummary()
 
   logger.info("");
-  logger.info("✓ Configuration collected!");
+  logger.info("✓ Initialization complete!");
+  logger.info("");
+  logger.info("Configuration:");
   logger.info(`  Admin email: ${config.adminEmail}`);
   logger.info(`  Tower domain: ${config.towerDomain}`);
   logger.info(`  Registry domain: ${config.registryDomain}`);
   logger.info(`  OTEL domain: ${config.otelDomain}`);
+  logger.info("");
+  logger.info("⚠️  IMPORTANT: Save these credentials securely!");
+  logger.info("");
+  logger.info("Tower API credentials (for deployments):");
+  logger.info(`  Username: tower`);
+  logger.info(`  Password: ${credentials.towerPassword}`);
+  logger.info("");
+  logger.info("Registry credentials (for CI/CD image push):");
+  logger.info(`  Username: ci`);
+  logger.info(`  Password: ${credentials.registryPassword}`);
+  logger.info("");
   logger.warn("Remaining initialization steps not yet implemented");
   logger.info("See BLUEPRINT.md for implementation details");
 }
@@ -174,12 +192,55 @@ function isValidDomain(domain: string): boolean {
 /**
  * Generate random credentials and hash them
  */
-function _generateCredentials(): {
+async function generateCredentials(): Promise<{
   towerPassword: string;
   registryPassword: string;
-} {
-  // TODO: Generate secure random passwords
-  // TODO: Hash with bcrypt
-  // TODO: Write to /var/infra/credentials.json
-  throw new Error("Not implemented");
+}> {
+  logger.info("Generating credentials...");
+
+  // Create /var/infra directory if it doesn't exist
+  await ensureDir("/var/infra");
+
+  // Generate secure random passwords
+  const towerPassword = generateSecurePassword(32);
+  const registryPassword = generateSecurePassword(32);
+
+  logger.info("  Hashing passwords...");
+
+  // Hash passwords with bcrypt
+  const towerHash = await hash(towerPassword);
+  const registryHash = await hash(registryPassword);
+
+  // Create credentials object
+  const credentials: Credentials = {
+    tower: {
+      username: "tower",
+      password_hash: towerHash,
+    },
+    registry: {
+      username: "ci",
+      password_hash: registryHash,
+    },
+  };
+
+  // Write credentials to file
+  await writeJsonFile("/var/infra/credentials.json", credentials);
+  logger.info("  ✓ Credentials generated and saved");
+
+  return {
+    towerPassword,
+    registryPassword,
+  };
+}
+
+/**
+ * Generate a cryptographically secure random password
+ */
+function generateSecurePassword(length: number = 32): string {
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+";
+  const values = new Uint8Array(length);
+  crypto.getRandomValues(values);
+  return Array.from(values)
+    .map((x) => charset[x % charset.length])
+    .join("");
 }
