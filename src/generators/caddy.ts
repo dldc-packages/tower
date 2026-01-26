@@ -5,6 +5,7 @@
  */
 
 import type { Intent } from "@dldc/tower/types";
+import { DEFAULT_DATA_DIR, DEFAULT_PORT } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
 /**
@@ -57,7 +58,7 @@ function generateRegistryBlock(intent: Intent): string {
 
   handle @write {
     basic_auth {
-      # Credentials from /var/infra/credentials.json
+      # Credentials from ${DEFAULT_DATA_DIR}/credentials.json
       # TODO: Load dynamically during Caddy startup
       ci JDJhJDEwJFJLTUVSbWNhYTdITmxLVGRIbmw5T2VYRkhMbk5VRmxLUnl3T3FIczBZVEJhaG9wdzh5b01DCg==
     }
@@ -75,11 +76,11 @@ function generateRegistryBlock(intent: Intent): string {
 function generateTowerBlock(intent: Intent): string {
   return `${intent.tower.domain} {
   basic_auth {
-    # Credentials from /var/infra/credentials.json
+    # Credentials from ${DEFAULT_DATA_DIR}/credentials.json
     # TODO: Load dynamically during Caddy startup
     tower JDJhJDEwJFJLTUVSbWNhYTdITmxLVGRIbmw5T2VYRkhMbk5VRmxLUnl3T3FIczBZVEJhaG9wdzh5b01DCg==
   }
-  reverse_proxy tower:3100
+  reverse_proxy tower:${DEFAULT_PORT}
 }`;
 }
 

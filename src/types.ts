@@ -15,6 +15,9 @@ export interface Intent {
   /** Admin email for Let's Encrypt ACME notifications */
   adminEmail: string;
 
+  /** Data directory (optional, defaults to /var/infra if not specified) */
+  dataDir?: string;
+
   /** Tower service configuration */
   tower: {
     /** Tower version (semver or digest) */

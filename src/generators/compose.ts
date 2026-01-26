@@ -5,6 +5,7 @@
  */
 
 import type { Intent } from "@dldc/tower/types";
+import { DEFAULT_DATA_DIR, DEFAULT_PORT } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
 /**
@@ -46,7 +47,7 @@ function generateInfraServices(intent: Intent): Record<string, unknown> {
       image: "caddy:2",
       ports: ["80:80", "443:443"],
       volumes: [
-        "/var/infra/Caddyfile:/etc/caddy/Caddyfile:ro",
+        `${DEFAULT_DATA_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro`,
         "caddy_data:/data",
         "caddy_config:/config",
       ],
@@ -57,17 +58,17 @@ function generateInfraServices(intent: Intent): Record<string, unknown> {
     tower: {
       image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
       environment: [
-        "TOWER_DATA_DIR=/var/infra",
+        `TOWER_DATA_DIR=${DEFAULT_DATA_DIR}`,
         "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-lgtm:4318/v1/traces",
       ],
       volumes: [
-        "/var/infra:/var/infra",
+        `${DEFAULT_DATA_DIR}:${DEFAULT_DATA_DIR}`,
         "/var/run/docker.sock:/var/run/docker.sock",
       ],
       networks: ["app_network"],
       restart: "unless-stopped",
       healthcheck: {
-        test: ["CMD", "curl", "-f", "http://localhost:3100/status"],
+        test: ["CMD", "curl", "-f", `http://localhost:${DEFAULT_PORT}/status`],
         interval: "10s",
         timeout: "5s",
         retries: 3,

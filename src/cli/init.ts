@@ -7,12 +7,17 @@
 import { hash } from "@felix/bcrypt";
 import { input } from "@inquirer/prompts";
 import denoJson from "../../deno.json" with { type: "json" };
+import { DEFAULT_DATA_DIR } from "../config.ts";
 import { apply } from "../core/applier.ts";
 import { waitForHealthy } from "../core/health.ts";
 import type { Credentials, Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeJsonFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
+
+export interface InitOptions {
+  dataDir?: string;
+}
 
 /**
  * Run Tower initialization flow
@@ -24,7 +29,9 @@ import { logger } from "../utils/logger.ts";
  * 4. Bootstrap the stack (apply initial config)
  * 5. Print summary and credentials
  */
-export async function runInit(): Promise<void> {
+export async function runInit(options: InitOptions = {}): Promise<void> {
+  const dataDir = options.dataDir ?? DEFAULT_DATA_DIR;
+
   logger.info("🗼 Tower Initialization");
   logger.info("");
 
@@ -37,11 +44,11 @@ export async function runInit(): Promise<void> {
 
   // Step 3: Generate credentials
   logger.info("");
-  const credentials = await generateCredentials();
+  const credentials = await generateCredentials(dataDir);
 
   // Step 4: Generate initial intent
   logger.info("");
-  const intent = generateInitialIntent(config);
+  const intent = generateInitialIntent(config, dataDir);
   logger.info("✓ Initial intent generated");
 
   // Step 5: Apply initial stack
@@ -185,14 +192,16 @@ function isValidDomain(domain: string): boolean {
 /**
  * Generate random credentials and hash them
  */
-async function generateCredentials(): Promise<{
+async function generateCredentials(
+  dataDir: string,
+): Promise<{
   towerPassword: string;
   registryPassword: string;
 }> {
   logger.info("Generating credentials...");
 
-  // Create /var/infra directory if it doesn't exist
-  await ensureDir("/var/infra");
+  // Create data directory if it doesn't exist
+  await ensureDir(dataDir);
 
   // Generate secure random passwords
   const towerPassword = generateSecurePassword(32);
@@ -217,7 +226,7 @@ async function generateCredentials(): Promise<{
   };
 
   // Write credentials to file
-  await writeJsonFile("/var/infra/credentials.json", credentials);
+  await writeJsonFile(`${dataDir}/credentials.json`, credentials);
   logger.info("  ✓ Credentials generated and saved");
 
   return {
@@ -241,13 +250,16 @@ function generateSecurePassword(length: number = 32): string {
 /**
  * Generate initial intent.json configuration
  */
-function generateInitialIntent(config: {
-  adminEmail: string;
-  towerDomain: string;
-  registryDomain: string;
-  otelDomain: string;
-}): Intent {
-  return {
+function generateInitialIntent(
+  config: {
+    adminEmail: string;
+    towerDomain: string;
+    registryDomain: string;
+    otelDomain: string;
+  },
+  dataDir: string,
+): Intent {
+  const intent: Intent = {
     version: "1",
     adminEmail: config.adminEmail,
     tower: {
@@ -263,6 +275,13 @@ function generateInitialIntent(config: {
     },
     apps: [], // Empty initially - apps added via deployments
   };
+
+  // Store dataDir only if different from default
+  if (dataDir !== DEFAULT_DATA_DIR) {
+    intent.dataDir = dataDir;
+  }
+
+  return intent;
 }
 
 /**

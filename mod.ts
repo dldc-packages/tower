@@ -37,7 +37,8 @@ async function main() {
     switch (command) {
       case "init": {
         const { runInit } = await import("./src/cli/init.ts");
-        await runInit();
+        const dataDir = args["data-dir"] as string | undefined;
+        await runInit({ dataDir });
         break;
       }
 
