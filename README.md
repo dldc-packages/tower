@@ -36,7 +36,7 @@ GitHub CI → Build & Push → Registry → Tower → Docker Compose → Apps
 #### Option A: Using the init script (recommended, no Deno required)
 
 ```bash
-# Run the init script directly (will prompt for configuration and passwords)
+# Download and run the init script (will prompt for configuration and passwords)
 curl -fsSL https://raw.githubusercontent.com/dldc-packages/tower/main/tower-init.sh | sudo bash
 ```
 
@@ -53,13 +53,6 @@ docker run --rm -it \
   -e TOWER_PASSWORD=your_secure_password_min_16_chars \
   -e REGISTRY_PASSWORD=your_secure_password_min_16_chars \
   ghcr.io/dldc-packages/tower:latest init --non-interactive
-```
-
-#### Option C: Using Deno (legacy)
-
-```bash
-# Install prerequisites and initialize Tower stack
-sudo deno run -A jsr:@dldc/tower init
 ```
 
 The init command will:

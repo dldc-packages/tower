@@ -16,6 +16,12 @@ NC='\033[0m' # No Color
 TOWER_IMAGE="${TOWER_IMAGE:-ghcr.io/dldc-packages/tower:latest}"
 MIN_PASSWORD_LENGTH=16
 
+# Check if running with sudo
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}❌ This script must be run with sudo${NC}"
+   exit 1
+fi
+
 echo -e "${GREEN}🗼 Tower Initialization${NC}"
 echo ""
 
@@ -31,7 +37,7 @@ echo ""
 
 # Prompt for admin email
 read -p "Admin email (for Let's Encrypt ACME notifications): " ADMIN_EMAIL
-if [[ ! "$ADMIN_EMAIL" =~ @.*\. ]]; then
+if [[ ! "$ADMIN_EMAIL" =~ @ ]] || [[ ! "$ADMIN_EMAIL" =~ \. ]]; then
     echo -e "${RED}❌ Please enter a valid email address${NC}"
     exit 1
 fi
