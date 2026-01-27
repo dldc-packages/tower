@@ -333,37 +333,33 @@ async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void>
 async function callTowerApply(intent: Intent, _dataDir: string): Promise<void> {
   const intentJson = JSON.stringify(intent);
 
-  // Use Deno.Command to pipe intent JSON to docker exec
-  const command = new Deno.Command("docker", {
-    args: [
-      "exec",
-      "-i",
-      "tower",
-      "deno",
-      "run",
-      "--allow-all",
-      "/usr/local/bin/tower",
-      "apply",
-    ],
-    stdin: "piped",
-    stdout: "inherit",
-    stderr: "inherit",
+  // Call tower /apply endpoint via HTTP on the docker network
+  const response = await fetch("http://tower:3100/apply", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: intentJson,
   });
 
-  const process = command.spawn();
-  const writer = process.stdin.getWriter();
-
-  try {
-    await writer.write(new TextEncoder().encode(intentJson));
-    await writer.close();
-  } catch (error) {
-    logger.error("Failed to write intent to apply command:", error);
-    throw error;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Apply failed: ${response.status} ${errorText}`);
   }
 
-  const { success } = await process.output();
-  if (!success) {
-    throw new Error("Apply command failed");
+  // Read and log the streaming response
+  if (response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        logger.info(text);
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   logger.info("✓ Apply completed");
