@@ -9,6 +9,7 @@ import { input } from "@inquirer/prompts";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { waitForHealthy } from "../core/health.ts";
+import { generateBootstrapCompose } from "../generators/compose.ts";
 import type { Credentials, Intent } from "../types.ts";
 import {
   checkDocker,
@@ -63,9 +64,14 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   // Step 6: Wait for services to be healthy
   logger.info("");
   logger.info("Waiting for services to start...");
-  await waitForHealthy(["tower", "caddy", "registry", "grafana", "loki", "tempo"], 120);
+  await waitForHealthy(["tower", "caddy", "registry", "otel-lgtm"], 120);
 
-  // Step 7: Print final summary
+  // Step 7: Clean up bootstrap network
+  logger.info("");
+  logger.info("Cleaning up bootstrap resources...");
+  await cleanupBootstrap(dataDir);
+
+  // Step 8: Print final summary
   logger.info("");
   printSummary(config, credentials, intent);
 }
@@ -296,7 +302,7 @@ async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void>
   logger.info("Bootstrapping tower-only compose...");
 
   const composePath = `${dataDir}/docker-compose.bootstrap.yml`;
-  const composeContent = buildBootstrapCompose(dataDir);
+  const composeContent = generateBootstrapCompose(dataDir, denoJson.version);
   await writeTextFile(composePath, composeContent);
 
   await composeConfig(composePath);
@@ -306,28 +312,6 @@ async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void>
 
   logger.info("Calling tower /apply via docker network (no host port exposure)...");
   await callTowerApply(intent, dataDir);
-}
-
-function buildBootstrapCompose(dataDir: string): string {
-  return `version: "3.8"
-
-services:
-  tower:
-    image: dldc/tower:${denoJson.version}
-    environment:
-      - TOWER_DATA_DIR=${dataDir}
-    volumes:
-      - ${dataDir}:/var/infra
-      - /var/run/docker.sock:/var/run/docker.sock
-    container_name: tower
-    networks:
-      - tower_bootstrap
-    restart: unless-stopped
-
-networks:
-  tower_bootstrap:
-    name: tower_bootstrap
-`;
 }
 
 async function callTowerApply(intent: Intent, dataDir: string): Promise<void> {
@@ -355,6 +339,32 @@ async function callTowerApply(intent: Intent, dataDir: string): Promise<void> {
 
   await execOrThrow(cmd);
   logger.info("✓ /apply completed");
+}
+
+/**
+ * Clean up bootstrap resources
+ */
+async function cleanupBootstrap(dataDir: string): Promise<void> {
+  try {
+    // Remove bootstrap compose file
+    const bootstrapCompose = `${dataDir}/docker-compose.bootstrap.yml`;
+    await Deno.remove(bootstrapCompose).catch(() => {});
+
+    // Remove temporary intent file
+    const tempIntent = `${dataDir}/.intent.bootstrap.json`;
+    await Deno.remove(tempIntent).catch(() => {});
+
+    // Stop and remove bootstrap container
+    await execOrThrow(["docker", "stop", "tower"]).catch(() => {});
+    await execOrThrow(["docker", "rm", "tower"]).catch(() => {});
+
+    // Remove bootstrap network
+    await execOrThrow(["docker", "network", "rm", "tower_bootstrap"]).catch(() => {});
+
+    logger.info("✓ Bootstrap cleanup complete");
+  } catch (error) {
+    logger.warn("Failed to clean up some bootstrap resources:", error);
+  }
 }
 
 /**

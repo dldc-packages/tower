@@ -71,7 +71,7 @@ export async function apply(intent: Intent): Promise<void> {
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
   // Step 3: Resolve semver ranges to digests
-  const resolvedImages = resolveSemver(validatedIntent);
+  const resolvedImages = await resolveSemver(validatedIntent);
   logger.info(`✓ Resolved ${resolvedImages.size} image(s) to digests`);
 
   // Step 4: Validate DNS for all domains (naive parallel check)
@@ -187,7 +187,7 @@ function resolveServices(intent: Intent, credentials: Credentials): ResolvedServ
     domain: intent.tower.domain,
     port: 3000,
     version: intent.tower.version,
-    image: `dldc/tower:${intent.tower.version}`,
+    image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
     upstreamName: "tower",
     upstreamPort: 3100,
     authPolicy: "basic_all",
@@ -246,16 +246,78 @@ async function loadCredentials(dataDir: string): Promise<Credentials> {
 /**
  * Resolve semver ranges in intent to immutable digests
  */
-function resolveSemver(_intent: Intent): Map<string, string> {
-  // TODO: Implement full semver resolution
-  // For now, return empty map (will use app.image as-is)
-  // 1. Parse image refs
-  // 2. For each with semver range:
-  //    - Query registry for tags
-  //    - Match range to tags
-  //    - Get digest for matched tag
-  // 3. Return map of app name → resolved image@digest
+async function resolveSemver(intent: Intent): Promise<Map<string, string>> {
+  const resolvedImages = new Map<string, string>();
 
-  logger.debug("Semver resolution not yet implemented, using image refs as-is");
-  return new Map<string, string>();
+  for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
+    const resolved = await resolveImageToDigest(image, intent);
+    if (resolved) {
+      resolvedImages.set(app.name, resolved);
+      logger.debug(`Resolved ${app.name}: ${app.image} → ${resolved}`);
+    }
+  }
+
+  return resolvedImages;
+}
+
+/**
+ * Resolve a single image reference to an immutable digest
+ */
+async function resolveImageToDigest(imageRef: string, intent: Intent): Promise<string | null> {
+  const { parseImageRef } = await import("./registry.ts");
+  const { matchSemverRange } = await import("./semver.ts");
+  const { createRegistryClient, listTags, getDigest } = await import("./registry.ts");
+
+  try {
+    const parsed = parseImageRef(imageRef);
+
+    // If already has a digest, return as-is
+    if (parsed.digest) {
+      return imageRef;
+    }
+
+    // If no tag or tag doesn't look like semver, return as-is
+    if (!parsed.tag || !isSemverLike(parsed.tag)) {
+      logger.debug(`Image ${imageRef} doesn't use semver, skipping resolution`);
+      return null;
+    }
+
+    // Determine if this is the internal registry
+    const isInternalRegistry = parsed.registry === "registry" ||
+      parsed.registry === intent.registry.domain;
+
+    // Create registry client
+    const baseUrl = isInternalRegistry ? "http://registry:5000" : `https://${parsed.registry}`;
+
+    const client = createRegistryClient(baseUrl);
+
+    // List available tags
+    const tags = await listTags(client, parsed.repository);
+
+    // Match semver range to available tags
+    const matchedTag = matchSemverRange(parsed.tag, tags);
+
+    if (!matchedTag) {
+      logger.warn(`No matching tag found for ${imageRef}, using original`);
+      return null;
+    }
+
+    // Get digest for matched tag
+    const digest = await getDigest(client, parsed.repository, matchedTag);
+
+    // Return full image reference with digest
+    return `${parsed.registry}/${parsed.repository}@${digest}`;
+  } catch (error) {
+    logger.warn(`Failed to resolve ${imageRef}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Check if a tag looks like it might be a semver range
+ */
+function isSemverLike(tag: string): boolean {
+  // Check for semver patterns: ^1.2.3, ~1.2.3, 1.2.*, >=1.2.3, etc.
+  return /^[~^>=<]?\d+(\.\d+)?(\.\d+)?/.test(tag);
 }

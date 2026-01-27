@@ -50,6 +50,13 @@ async function main() {
         break;
       }
 
+      case "apply": {
+        const { runApply } = await import("./src/cli/apply.ts");
+        const dataDir = args["data-dir"] as string | undefined;
+        await runApply({ dataDir });
+        break;
+      }
+
       default:
         console.error(`Unknown command: ${command}`);
         printHelp();
@@ -71,6 +78,7 @@ USAGE:
 COMMANDS:
   init              Bootstrap Tower infrastructure (one-time setup)
   serve             Start Tower HTTP server (runs inside container)
+    apply             Apply deployment from intent.json (reads from stdin)
 
 OPTIONS:
   -h, --help        Show this help message
@@ -81,6 +89,11 @@ OPTIONS:
 EXAMPLES:
   # Bootstrap Tower
   sudo tower init
+
+    # Apply deployment from intent.json
+    cat intent.json | tower apply
+    # or
+    tower apply < intent.json
 
   # Start HTTP server
   tower serve --port 3100

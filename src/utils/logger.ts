@@ -196,6 +196,6 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   return new Logger(options);
 }
 
-export { LogFormat, LoggerOptions, LogLevel, LogSink };
+export type { LogFormat, LoggerOptions, LogLevel, LogSink };
 
 export const logger = createLogger();
