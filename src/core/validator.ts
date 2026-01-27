@@ -78,13 +78,19 @@ const intentSchema: v.GenericSchema<Intent> = v.object({
   tower: v.object({
     version: v.pipe(v.string(), v.minLength(1, "Tower version must not be empty")),
     domain: domainSchema,
+    username: v.pipe(v.string(), v.minLength(1, "Tower username must not be empty")),
+    passwordHash: v.pipe(v.string(), v.minLength(1, "Tower password hash must not be empty")),
   }),
   registry: v.object({
     domain: domainSchema,
+    username: v.pipe(v.string(), v.minLength(1, "Registry username must not be empty")),
+    passwordHash: v.pipe(v.string(), v.minLength(1, "Registry password hash must not be empty")),
   }),
   otel: v.object({
     version: v.pipe(v.string(), v.minLength(1, "OTEL version must not be empty")),
     domain: domainSchema,
+    username: v.pipe(v.string(), v.minLength(1, "OTEL username must not be empty")),
+    passwordHash: v.pipe(v.string(), v.minLength(1, "OTEL password hash must not be empty")),
   }),
   apps: v.array(appSchema),
 });

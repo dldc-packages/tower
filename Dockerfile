@@ -28,5 +28,8 @@ EXPOSE 3100
 ENV TOWER_DATA_DIR=/var/infra \
     TOWER_PORT=3100
 
-# Run Tower HTTP server
-CMD ["deno", "run", "--allow-all", "mod.ts", "serve"]
+# Use ENTRYPOINT to allow passing commands as arguments
+ENTRYPOINT ["deno", "run", "--allow-all", "mod.ts"]
+
+# Default command when no arguments provided
+CMD ["serve"]

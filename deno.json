@@ -28,7 +28,6 @@
   ],
   "imports": {
     "@felix/bcrypt": "jsr:@felix/bcrypt@^1.0.8",
-    "@inquirer/prompts": "npm:@inquirer/prompts@^8.2.0",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
     "@std/cli": "jsr:@std/cli@^1.0.26",
     "@std/yaml": "jsr:@std/yaml@^1.0.11",

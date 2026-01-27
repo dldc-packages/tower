@@ -121,7 +121,7 @@ docker run --rm -it \
     -e "OTEL_DOMAIN=$OTEL_DOMAIN" \
     -e "TOWER_PASSWORD=$TOWER_PASSWORD" \
     -e "REGISTRY_PASSWORD=$REGISTRY_PASSWORD" \
-    "$TOWER_IMAGE" init --non-interactive
+    "$TOWER_IMAGE" init
 
 if [[ $? -eq 0 ]]; then
     echo ""

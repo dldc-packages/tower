@@ -24,12 +24,20 @@ export interface Intent {
     version: string;
     /** Tower domain (e.g., "tower.example.com") */
     domain: string;
+    /** Tower API username */
+    username: string;
+    /** Tower API password hash (bcrypt) */
+    passwordHash: string;
   };
 
   /** Docker Registry configuration */
   registry: {
     /** Registry domain (e.g., "registry.example.com") */
     domain: string;
+    /** Registry username */
+    username: string;
+    /** Registry password hash (bcrypt) */
+    passwordHash: string;
   };
 
   /** OTEL-LGTM observability stack configuration */
@@ -38,6 +46,10 @@ export interface Intent {
     version: string;
     /** OTEL-LGTM domain (e.g., "otel.example.com") */
     domain: string;
+    /** OTEL username */
+    username: string;
+    /** OTEL password hash (bcrypt) */
+    passwordHash: string;
   };
 
   /** Application services to deploy */

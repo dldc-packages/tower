@@ -5,12 +5,11 @@
  */
 
 import { hash } from "@felix/bcrypt";
-import { input } from "@inquirer/prompts";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { waitForHealthy } from "../core/health.ts";
 import { generateBootstrapCompose } from "../generators/compose.ts";
-import type { Credentials, Intent } from "../types.ts";
+import type { Intent } from "../types.ts";
 import {
   checkDocker,
   checkDockerCompose,
@@ -18,12 +17,11 @@ import {
   composeUp,
   execOrThrow,
 } from "../utils/exec.ts";
-import { ensureDir, fileExists, writeJsonFile, writeTextFile } from "../utils/fs.ts";
+import { ensureDir, fileExists, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
 export interface InitOptions {
   dataDir?: string;
-  nonInteractive?: boolean;
 }
 
 /**
@@ -31,14 +29,14 @@ export interface InitOptions {
  *
  * Steps:
  * 1. Check prerequisites (Docker, Compose)
- * 2. Prompt for configuration
- * 3. Generate initial intent.json and credentials
- * 4. Bootstrap the stack (apply initial config)
- * 5. Print summary and credentials
+ * 2. Load configuration from environment variables
+ * 3. Hash credentials from environment variables
+ * 4. Generate initial intent with credentials embedded
+ * 5. Bootstrap the stack (apply initial config with credentials)
+ * 6. Print summary
  */
 export async function runInit(options: InitOptions = {}): Promise<void> {
   const dataDir = options.dataDir ?? DEFAULT_DATA_DIR;
-  const nonInteractive = options.nonInteractive ?? false;
 
   logger.info("🗼 Tower Initialization");
   logger.info("");
@@ -46,19 +44,17 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   // Step 1: Check prerequisites
   await checkPrerequisites();
 
-  // Step 2: Get configuration (from env vars in non-interactive mode, or prompt user)
+  // Step 2: Load configuration from environment variables
   logger.info("");
-  const config = nonInteractive ? loadConfigurationFromEnv() : await promptConfiguration();
+  const config = loadConfigurationFromEnv();
 
-  // Step 3: Generate or load credentials
+  // Step 3: Hash credentials from environment variables
   logger.info("");
-  const credentials = nonInteractive
-    ? await loadCredentialsFromEnv(dataDir)
-    : await generateCredentials(dataDir);
+  const hashedCredentials = await hashCredentialsFromEnv();
 
-  // Step 4: Generate initial intent
+  // Step 4: Generate initial intent with credentials
   logger.info("");
-  const intent = generateInitialIntent(config, dataDir);
+  const intent = generateInitialIntent(config, dataDir, hashedCredentials);
   logger.info("✓ Initial intent generated");
 
   // Step 5: Bootstrap tower-only compose and call /apply inside the container
@@ -77,7 +73,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   // Step 8: Print final summary
   logger.info("");
-  printSummary(config, credentials, intent, nonInteractive);
+  printSummary(intent);
 }
 
 /**
@@ -170,70 +166,6 @@ function loadConfigurationFromEnv(): {
 }
 
 /**
- * Prompt user for Tower configuration
- */
-async function promptConfiguration(): Promise<{
-  adminEmail: string;
-  towerDomain: string;
-  registryDomain: string;
-  otelDomain: string;
-}> {
-  logger.info("Collecting configuration...");
-  logger.info("");
-
-  // Prompt for admin email
-  const adminEmail = await input({
-    message: "Admin email (for Let's Encrypt ACME notifications):",
-    validate: (value) => {
-      if (!value.includes("@") || !value.includes(".")) {
-        return "Please enter a valid email address";
-      }
-      return true;
-    },
-  });
-
-  // Prompt for Tower domain
-  const towerDomain = await input({
-    message: "Tower domain (e.g., tower.example.com):",
-    validate: (value) => {
-      if (!isValidDomain(value)) {
-        return "Please enter a valid domain (e.g., tower.example.com)";
-      }
-      return true;
-    },
-  });
-
-  // Prompt for Registry domain
-  const registryDomain = await input({
-    message: "Registry domain (e.g., registry.example.com):",
-    validate: (value) => {
-      if (!isValidDomain(value)) {
-        return "Please enter a valid domain (e.g., registry.example.com)";
-      }
-      return true;
-    },
-  });
-
-  // Prompt for OTEL domain
-  const otelDomain = await input({
-    message: "OTEL/Grafana domain (e.g., otel.example.com):",
-    validate: (value) => {
-      if (!isValidDomain(value)) {
-        return "Please enter a valid domain (e.g., otel.example.com)";
-      }
-      return true;
-    },
-  });
-
-  return {
-    adminEmail,
-    towerDomain,
-    registryDomain,
-    otelDomain,
-  };
-}
-
-/**
  * Validate domain format
  */
 function isValidDomain(domain: string): boolean {
@@ -244,16 +176,63 @@ function isValidDomain(domain: string): boolean {
 }
 
 /**
- * Load credentials from environment variables and hash them
+ * Hash credentials from environment variables
  */
-async function loadCredentialsFromEnv(
+async function hashCredentialsFromEnv(): Promise<{
+  tower: { username: string; passwordHash: string };
+  registry: { username: string; passwordHash: string };
+  otel: { username: string; passwordHash: string };
+}> {
+  logger.info("Hashing credentials from environment variables...");
+
+  const towerPassword = Deno.env.get("TOWER_PASSWORD");
+  const registryPassword = Deno.env.get("REGISTRY_PASSWORD");
+
+  const MIN_PASSWORD_LENGTH = 16;
+
+  if (!towerPassword || towerPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Invalid or missing TOWER_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
+    );
+  }
+  if (!registryPassword || registryPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Invalid or missing REGISTRY_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
+    );
+  }
+
+  // Hash passwords with bcrypt
+  const towerHash = await hash(towerPassword);
+  const registryHash = await hash(registryPassword);
+  const otelHash = await hash(registryPassword); // OTEL uses same password as registry for now
+
+  logger.info("  ✓ Credentials hashed");
+
+  return {
+    tower: {
+      username: "tower",
+      passwordHash: towerHash,
+    },
+    registry: {
+      username: "ci",
+      passwordHash: registryHash,
+    },
+    otel: {
+      username: "admin",
+      passwordHash: otelHash,
+    },
+  };
+}
+
+/**
+ * Load credentials from environment variables (deprecated - kept for compatibility)
+ */
+async function _loadCredentialsFromEnv(
   dataDir: string,
 ): Promise<{
   towerPassword: string;
   registryPassword: string;
 }> {
-  logger.info("Loading credentials from environment variables...");
-
   // Create data directory if it doesn't exist
   await ensureDir(dataDir);
 
@@ -273,94 +252,18 @@ async function loadCredentialsFromEnv(
     );
   }
 
-  logger.info("  Hashing passwords...");
-
   // Hash passwords with bcrypt
   const towerHash = await hash(towerPassword);
   const registryHash = await hash(registryPassword);
 
-  // Create credentials object
-  const credentials: Credentials = {
-    tower: {
-      username: "tower",
-      password_hash: towerHash,
-    },
-    registry: {
-      username: "ci",
-      password_hash: registryHash,
-    },
-  };
-
-  // Write credentials to file
-  await writeJsonFile(`${dataDir}/credentials.json`, credentials);
-  logger.info("  ✓ Credentials loaded and saved");
-
   return {
-    towerPassword,
-    registryPassword,
+    towerPassword: towerHash,
+    registryPassword: registryHash,
   };
 }
 
 /**
- * Generate random credentials and hash them
- */
-async function generateCredentials(
-  dataDir: string,
-): Promise<{
-  towerPassword: string;
-  registryPassword: string;
-}> {
-  logger.info("Generating credentials...");
-
-  // Create data directory if it doesn't exist
-  await ensureDir(dataDir);
-
-  // Generate secure random passwords
-  const towerPassword = generateSecurePassword(32);
-  const registryPassword = generateSecurePassword(32);
-
-  logger.info("  Hashing passwords...");
-
-  // Hash passwords with bcrypt
-  const towerHash = await hash(towerPassword);
-  const registryHash = await hash(registryPassword);
-
-  // Create credentials object
-  const credentials: Credentials = {
-    tower: {
-      username: "tower",
-      password_hash: towerHash,
-    },
-    registry: {
-      username: "ci",
-      password_hash: registryHash,
-    },
-  };
-
-  // Write credentials to file
-  await writeJsonFile(`${dataDir}/credentials.json`, credentials);
-  logger.info("  ✓ Credentials generated and saved");
-
-  return {
-    towerPassword,
-    registryPassword,
-  };
-}
-
-/**
- * Generate a cryptographically secure random password
- */
-function generateSecurePassword(length: number = 32): string {
-  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*-_=+";
-  const values = new Uint8Array(length);
-  crypto.getRandomValues(values);
-  return Array.from(values)
-    .map((x) => charset[x % charset.length])
-    .join("");
-}
-
-/**
- * Generate initial intent.json configuration
+ * Generate initial intent.json configuration with credentials
  */
 function generateInitialIntent(
   config: {
@@ -370,6 +273,11 @@ function generateInitialIntent(
     otelDomain: string;
   },
   dataDir: string,
+  credentials: {
+    tower: { username: string; passwordHash: string };
+    registry: { username: string; passwordHash: string };
+    otel: { username: string; passwordHash: string };
+  },
 ): Intent {
   const intent: Intent = {
     version: "1",
@@ -377,13 +285,19 @@ function generateInitialIntent(
     tower: {
       version: denoJson.version,
       domain: config.towerDomain,
+      username: credentials.tower.username,
+      passwordHash: credentials.tower.passwordHash,
     },
     registry: {
       domain: config.registryDomain,
+      username: credentials.registry.username,
+      passwordHash: credentials.registry.passwordHash,
     },
     otel: {
       version: "latest",
       domain: config.otelDomain,
+      username: credentials.otel.username,
+      passwordHash: credentials.otel.passwordHash,
     },
     apps: [], // Empty initially - apps added via deployments
   };
@@ -483,53 +397,20 @@ async function cleanupBootstrap(dataDir: string): Promise<void> {
 /**
  * Print initialization summary
  */
-function printSummary(
-  config: {
-    adminEmail: string;
-    towerDomain: string;
-    registryDomain: string;
-    otelDomain: string;
-  },
-  credentials: {
-    towerPassword: string;
-    registryPassword: string;
-  },
-  intent: Intent,
-  nonInteractive: boolean = false,
-): void {
-  logger.info("✓ Initialization complete!");
+function printSummary(intent: Intent): void {
+  logger.info("✓ Tower initialization complete!");
   logger.info("");
-  logger.info("Configuration:");
-  logger.info(`  Admin email: ${config.adminEmail}`);
-  logger.info(`  Tower domain: ${config.towerDomain}`);
-  logger.info(`  Registry domain: ${config.registryDomain}`);
-  logger.info(`  OTEL domain: ${config.otelDomain}`);
-  logger.info("");
-  logger.info("Intent:");
+  logger.info("Base intent.json:");
   logger.info(JSON.stringify(intent, null, 2));
   logger.info("");
-
-  // Only show credentials in interactive mode
-  if (!nonInteractive) {
-    logger.info("⚠️  IMPORTANT: Save these credentials securely!");
-    logger.info("");
-    logger.info("Tower API credentials (for deployments):");
-    logger.info(`  Username: tower`);
-    logger.info(`  Password: ${credentials.towerPassword}`);
-    logger.info("");
-    logger.info("Registry credentials (for CI/CD image push):");
-    logger.info(`  Username: ci`);
-    logger.info(`  Password: ${credentials.registryPassword}`);
-    logger.info("");
-  }
   logger.info("Next steps:");
   logger.info("  1. Configure DNS records to point to this server:");
-  logger.info(`     - ${config.towerDomain} → this server's IP`);
-  logger.info(`     - ${config.registryDomain} → this server's IP`);
-  logger.info(`     - ${config.otelDomain} → this server's IP`);
+  logger.info(`     - ${intent.tower.domain} → this server's IP`);
+  logger.info(`     - ${intent.registry.domain} → this server's IP`);
+  logger.info(`     - ${intent.otel.domain} → this server's IP`);
   logger.info("  2. Wait for Let's Encrypt SSL certificates to be issued (may take a few minutes)");
-  logger.info("  3. Access Tower API at https://" + config.towerDomain);
-  logger.info("  4. Access Grafana at https://" + config.otelDomain);
+  logger.info("  3. Access Tower API at https://" + intent.tower.domain);
+  logger.info("  4. Access Grafana at https://" + intent.otel.domain);
   logger.info("");
   logger.info("For more information, visit: https://jsr.io/@dldc/tower");
 }
