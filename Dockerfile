@@ -24,7 +24,7 @@ COPY deno.json deno.lock* ./
 COPY . .
 
 # Cache dependencies
-RUN deno install --allow-all
+RUN deno install
 
 # Create non-root user and ensure deno cache is writable
 RUN useradd -m -u 1000 tower && \
