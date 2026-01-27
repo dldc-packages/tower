@@ -54,7 +54,8 @@ export async function getJson<T>(url: string, headers?: Record<string, string>):
   const response = await request(url, { method: "GET", headers });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}`, { cause: new Error(errorText) });
   }
 
   return await response.json() as T;
@@ -78,7 +79,8 @@ export async function postJson<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}`, { cause: new Error(errorText) });
   }
 
   return await response.json() as T;

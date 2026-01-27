@@ -51,8 +51,10 @@ export async function exec(cmd: string[]): Promise<ExecResult> {
 export async function execOrThrow(cmd: string[]): Promise<string> {
   const result = await exec(cmd);
   if (!result.success) {
+    const error = new Error(`Stderr: ${result.stderr}`);
     throw new Error(
-      `Command failed: ${cmd.join(" ")}\nCode: ${result.code}\nStderr: ${result.stderr}`,
+      `Command failed: ${cmd.join(" ")} (exit code: ${result.code})`,
+      { cause: error },
     );
   }
   return result.stdout;

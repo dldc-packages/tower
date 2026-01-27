@@ -42,7 +42,7 @@ export async function listTags(
     return response.tags ?? [];
   } catch (error) {
     logger.error(`Failed to list tags for ${repository}:`, error);
-    throw new RegistryError(`Failed to list tags: ${repository}`);
+    throw new RegistryError(`Failed to list tags: ${repository}`, { cause: error });
   }
 }
 
@@ -66,7 +66,8 @@ export async function getDigest(
     const response = await fetch(url, { method: "HEAD", headers });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`HTTP ${response.status}`, { cause: new Error(errorText) });
     }
 
     const digest = response.headers.get("Docker-Content-Digest");
@@ -77,7 +78,7 @@ export async function getDigest(
     return digest;
   } catch (error) {
     logger.error(`Failed to get digest for ${repository}:${tag}:`, error);
-    throw new RegistryError(`Failed to get digest: ${repository}:${tag}`);
+    throw new RegistryError(`Failed to get digest: ${repository}:${tag}`, { cause: error });
   }
 }
 

@@ -29,7 +29,8 @@ export async function loadCaddyConfig(
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Caddy load failed (${response.status}): ${body}`);
+    const error = new Error(body);
+    throw new Error(`Caddy load failed (${response.status})`, { cause: error });
   }
 
   logger.info("✓ Caddy config accepted by admin API");

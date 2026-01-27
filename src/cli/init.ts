@@ -123,7 +123,7 @@ async function checkPrerequisites(): Promise<void> {
     logger.error("❌ Cannot access Docker socket");
     logger.info("You may need to run this command with sudo or add your user to the docker group");
     logger.info("See: https://docs.docker.com/engine/install/linux-postinstall/");
-    throw new Error(`Docker socket permission denied: ${error}`);
+    throw new Error(`Docker socket permission denied`, { cause: error });
   }
 }
 
@@ -465,6 +465,9 @@ try {
   const dataDir = args["data-dir"] as string | undefined;
   await runInit({ dataDir });
 } catch (error) {
-  logger.error("Init failed:", error);
+  logger.error("Init failed:", error instanceof Error ? error.message : String(error));
+  if (error instanceof Error && error.stack) {
+    logger.debug(error.stack);
+  }
   Deno.exit(1);
 }

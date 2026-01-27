@@ -6,8 +6,8 @@
  * Base error class for Tower errors
  */
 export class TowerError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "TowerError";
   }
 }
@@ -16,8 +16,8 @@ export class TowerError extends Error {
  * Configuration validation error
  */
 export class ValidationError extends TowerError {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ValidationError";
   }
 }
@@ -26,28 +26,36 @@ export class ValidationError extends TowerError {
  * Docker/Compose execution error
  */
 export class DockerError extends TowerError {
-  constructor(message: string, public readonly exitCode?: number) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions & { exitCode?: number }) {
+    super(message, options);
     this.name = "DockerError";
+    if (options?.exitCode !== undefined) {
+      this.exitCode = options.exitCode;
+    }
   }
+  exitCode?: number;
 }
 
 /**
  * Registry API error
  */
 export class RegistryError extends TowerError {
-  constructor(message: string, public readonly statusCode?: number) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions & { statusCode?: number }) {
+    super(message, options);
     this.name = "RegistryError";
+    if (options?.statusCode !== undefined) {
+      this.statusCode = options.statusCode;
+    }
   }
+  statusCode?: number;
 }
 
 /**
  * DNS validation error
  */
 export class DnsError extends TowerError {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "DnsError";
   }
 }
@@ -56,8 +64,8 @@ export class DnsError extends TowerError {
  * Health check timeout error
  */
 export class HealthCheckError extends TowerError {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "HealthCheckError";
   }
 }
@@ -66,8 +74,8 @@ export class HealthCheckError extends TowerError {
  * Authentication error
  */
 export class AuthError extends TowerError {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "AuthError";
   }
 }

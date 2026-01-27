@@ -40,8 +40,8 @@ export async function waitForHealthy(
 
     // Log current status
     for (const container of health) {
-      logger.debug(
-        `${container.name}: ${container.status} (health: ${container.health ?? "none"})`,
+      logger.info(
+        `  ${container.name}: ${container.status} (health: ${container.health ?? "none"})`,
       );
     }
 
@@ -59,6 +59,10 @@ export async function waitForHealthy(
     const failed = health.filter((c) => c.health === "unhealthy" || c.status === "exited");
     if (failed.length > 0) {
       const names = failed.map((c) => c.name).join(", ");
+      logger.error(`Failed containers details:`);
+      for (const container of failed) {
+        logger.error(`  ${container.name}: status=${container.status}, health=${container.health}`);
+      }
       throw new HealthCheckError(`Containers failed health checks: ${names}`);
     }
 
