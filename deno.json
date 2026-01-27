@@ -1,6 +1,6 @@
 {
   "name": "@dldc/tower",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "exports": {
     ".": "./mod.ts",
     "./types": "./src/types.ts"
