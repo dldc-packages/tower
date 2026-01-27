@@ -117,7 +117,9 @@ docker image inspect "$TOWER_IMAGE" --format='  Version: {{.Config.Labels.versio
 echo ""
 
 # Run docker with all the environment variables
+# Run as root since init needs to write to deno cache and docker socket
 docker run --rm -it \
+    --user root \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /var/infra:/var/infra \
     -e "ADMIN_EMAIL=$ADMIN_EMAIL" \
