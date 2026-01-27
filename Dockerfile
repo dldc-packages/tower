@@ -6,11 +6,11 @@ WORKDIR /app
 # Copy dependency files
 COPY deno.json deno.lock* ./
 
-# Cache dependencies
-RUN deno install --entrypoint mod.ts
-
 # Copy source code
 COPY . .
+
+# Cache dependencies
+RUN deno install --entrypoint mod.ts
 
 # Create non-root user
 RUN useradd -m -u 1000 tower && \
