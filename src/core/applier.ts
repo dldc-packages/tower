@@ -102,7 +102,6 @@ export async function apply(intent: Intent): Promise<void> {
     await Deno.remove(tempComposePath).catch(() => {});
   } catch (error) {
     await Deno.remove(tempComposePath).catch(() => {});
-    const message = error instanceof Error ? error.message : String(error);
     throw new Error(`docker-compose.yml validation failed`, { cause: error });
   }
 
