@@ -111,8 +111,12 @@ echo ""
 echo "Running Tower initialization..."
 echo ""
 
+# Log image info for debugging
+echo "Docker image: $TOWER_IMAGE"
+docker image inspect "$TOWER_IMAGE" --format='  Version: {{.Config.Labels.version}}{{- if eq .Config.Labels.version ""}} (not set){{end}}'
+echo ""
+
 # Run docker with all the environment variables
-# When ENTRYPOINT is ["deno", "run", "--allow-all"], passing args appends them
 docker run --rm -it \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /var/infra:/var/infra \
@@ -123,7 +127,7 @@ docker run --rm -it \
     -e "TOWER_PASSWORD=$TOWER_PASSWORD" \
     -e "REGISTRY_PASSWORD=$REGISTRY_PASSWORD" \
     "$TOWER_IMAGE" \
-    src/cli/init.ts
+    task command:init
 
 if [[ $? -eq 0 ]]; then
     echo ""
