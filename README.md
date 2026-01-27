@@ -37,7 +37,7 @@ GitHub CI → Build & Push → Registry → Tower → Docker Compose → Apps
 
 ```bash
 # Download and run the init script (will prompt for configuration and passwords)
-curl -fsSL https://raw.githubusercontent.com/dldc-packages/tower/main/tower-init.sh | sudo bash
+sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/dldc-packages/tower/main/tower-init.sh)"
 ```
 
 #### Option B: Using Docker directly
