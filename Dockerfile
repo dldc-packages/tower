@@ -28,8 +28,5 @@ EXPOSE 3100
 ENV TOWER_DATA_DIR=/var/infra \
     TOWER_PORT=3100
 
-# Use ENTRYPOINT to allow running different CLI commands
-ENTRYPOINT ["deno", "run", "--allow-all"]
-
-# Default command when no arguments provided (runs serve)
-CMD ["src/cli/serve.ts"]
+# Use denoland's existing ENTRYPOINT, only override CMD
+CMD ["task", "command:serve"]

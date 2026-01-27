@@ -11,7 +11,9 @@
     "update:commit": "deno task -q update --commit",
     "check": "deno check && deno fmt --check && deno lint",
     "lint": "deno lint",
-    "fmt": "deno fmt"
+    "fmt": "deno fmt",
+    "command:init": "deno run --allow-all src/cli/init.ts",
+    "command:serve": "deno run --allow-all src/cli/serve.ts"
   },
   "fmt": {
     "lineWidth": 100
