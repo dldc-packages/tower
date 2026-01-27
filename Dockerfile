@@ -9,8 +9,8 @@ COPY deno.json deno.lock* ./
 # Copy source code
 COPY . .
 
-# Copy source code
-COPY . .
+# Cache dependencies
+RUN deno i
 
 # Create non-root user
 RUN useradd -m -u 1000 tower && \
