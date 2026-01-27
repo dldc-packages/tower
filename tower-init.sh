@@ -125,6 +125,7 @@ echo ""
 # Run as root since init needs to write to deno cache and docker socket
 docker run --rm -it \
     --user root \
+    --network tower_bootstrap \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /var/infra:/var/infra \
     -e "ADMIN_EMAIL=$ADMIN_EMAIL" \
