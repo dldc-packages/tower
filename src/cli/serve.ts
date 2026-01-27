@@ -2,18 +2,16 @@
  * Tower HTTP server
  *
  * Runs inside the Tower container and exposes /apply, /refresh, /status endpoints.
+ * Authentication is handled by Caddy (Basic Auth).
  */
 
-import { verify } from "@felix/bcrypt";
 import { parseArgs } from "@std/cli/parse-args";
 import { DEFAULT_DATA_DIR, DEFAULT_PORT } from "../config.ts";
 import { apply } from "../core/applier.ts";
 import { getContainerHealth } from "../core/health.ts";
 import { validateIntent } from "../core/validator.ts";
-import type { AppliedIntent, Credentials, DeploymentStatus, Intent } from "../types.ts";
-import { AuthError } from "../utils/errors.ts";
+import type { AppliedIntent, DeploymentStatus, Intent } from "../types.ts";
 import { fileExists, readJsonFile } from "../utils/fs.ts";
-import { parseBasicAuth } from "../utils/http.ts";
 import { createConsoleSink, createLogger, createStreamSink, logger } from "../utils/logger.ts";
 
 export interface ServeOptions {
@@ -51,13 +49,6 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     } catch (error) {
       logger.error("Request error:", error);
 
-      if (error instanceof AuthError) {
-        return new Response("Unauthorized", {
-          status: 401,
-          headers: { "WWW-Authenticate": 'Basic realm="Tower"' },
-        });
-      }
-
       return new Response(
         `Internal Server Error: ${error instanceof Error ? error.message : String(error)}`,
         { status: 500 },
@@ -70,47 +61,11 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
 }
 
 /**
- * Authenticate request using Basic Auth
- */
-async function authenticate(req: Request, dataDir: string): Promise<void> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    throw new AuthError("Missing Authorization header");
-  }
-
-  const credentials = parseBasicAuth(authHeader);
-  if (!credentials) {
-    throw new AuthError("Invalid Authorization header");
-  }
-
-  // Load credentials from disk
-  const credsPath = `${dataDir}/credentials.json`;
-  if (!await fileExists(credsPath)) {
-    throw new AuthError("Credentials file not found");
-  }
-
-  const creds = await readJsonFile<Credentials>(credsPath);
-
-  // Validate tower credentials
-  if (credentials.username !== creds.tower.username) {
-    throw new AuthError("Invalid username");
-  }
-
-  const valid = await verify(credentials.password, creds.tower.password_hash);
-  if (!valid) {
-    throw new AuthError("Invalid password");
-  }
-}
-
-/**
  * Handle POST /apply endpoint
  */
-async function handleApply(req: Request, dataDir: string): Promise<Response> {
-  // Authenticate
-  await authenticate(req, dataDir);
-
+async function handleApply(_req: Request, _dataDir: string): Promise<Response> {
   // Parse intent from body
-  const body = await req.text();
+  const body = await _req.text();
   let intent: Intent;
 
   try {
@@ -166,10 +121,7 @@ async function handleApply(req: Request, dataDir: string): Promise<Response> {
 /**
  * Handle POST /refresh endpoint
  */
-async function handleRefresh(req: Request, dataDir: string): Promise<Response> {
-  // Authenticate
-  await authenticate(req, dataDir);
-
+async function handleRefresh(_req: Request, dataDir: string): Promise<Response> {
   // Load current intent from disk
   const intentPath = `${dataDir}/intent.json`;
   if (!await fileExists(intentPath)) {
@@ -232,10 +184,7 @@ async function handleRefresh(req: Request, dataDir: string): Promise<Response> {
 /**
  * Handle GET /status endpoint
  */
-async function handleStatus(req: Request, dataDir: string): Promise<Response> {
-  // Authenticate
-  await authenticate(req, dataDir);
-
+async function handleStatus(_req: Request, dataDir: string): Promise<Response> {
   try {
     // Load applied intent
     const appliedPath = `${dataDir}/intent.json`;
