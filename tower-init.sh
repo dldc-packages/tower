@@ -111,7 +111,12 @@ echo ""
 echo "Running Tower initialization..."
 echo ""
 
+# Pull the latest image to avoid using stale cache
+echo "Pulling Tower image: $TOWER_IMAGE"
+docker pull "$TOWER_IMAGE"
+
 # Log image info for debugging
+echo ""
 echo "Docker image: $TOWER_IMAGE"
 docker image inspect "$TOWER_IMAGE" --format='  Version: {{.Config.Labels.version}}{{- if eq .Config.Labels.version ""}} (not set){{end}}'
 echo ""
