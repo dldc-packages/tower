@@ -19,7 +19,6 @@ jobs:
           deno-version: v2.x # Run with latest stable Deno.
 
       - run: deno task check
-      - run: npx jsr publish
 
       - name: Extract version from deno.json
         id: version
