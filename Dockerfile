@@ -24,11 +24,13 @@ COPY deno.json deno.lock* ./
 COPY . .
 
 # Cache dependencies
-RUN deno i
+RUN deno install --allow-all
 
-# Create non-root user
+# Create non-root user and ensure deno cache is writable
 RUN useradd -m -u 1000 tower && \
-    chown -R tower:tower /app
+    chown -R tower:tower /app && \
+    mkdir -p /deno-dir && \
+    chown -R tower:tower /deno-dir
 
 # Note: Tower needs access to /var/run/docker.sock
 # This is mounted at runtime, not copied into image
