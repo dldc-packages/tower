@@ -9,8 +9,8 @@ COPY deno.json deno.lock* ./
 # Copy source code
 COPY . .
 
-# Cache dependencies
-RUN deno install --entrypoint mod.ts
+# Copy source code
+COPY . .
 
 # Create non-root user
 RUN useradd -m -u 1000 tower && \
@@ -28,8 +28,8 @@ EXPOSE 3100
 ENV TOWER_DATA_DIR=/var/infra \
     TOWER_PORT=3100
 
-# Use ENTRYPOINT to allow passing commands as arguments
-ENTRYPOINT ["deno", "run", "--allow-all", "mod.ts"]
+# Use ENTRYPOINT to allow running different CLI commands
+ENTRYPOINT ["deno", "run", "--allow-all"]
 
-# Default command when no arguments provided
-CMD ["serve"]
+# Default command when no arguments provided (runs serve)
+CMD ["src/cli/serve.ts"]

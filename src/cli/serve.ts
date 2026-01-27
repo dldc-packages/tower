@@ -1,3 +1,5 @@
+#!/usr/bin/env -S deno run --allow-all
+
 /**
  * Tower HTTP server
  *
@@ -5,6 +7,7 @@
  */
 
 import { verify } from "@felix/bcrypt";
+import { parseArgs } from "@std/cli/parse-args";
 import { DEFAULT_DATA_DIR, DEFAULT_PORT } from "../config.ts";
 import { apply } from "../core/applier.ts";
 import { getContainerHealth } from "../core/health.ts";
@@ -332,4 +335,43 @@ async function handleStatus(req: Request, dataDir: string): Promise<Response> {
       { status: 500 },
     );
   }
+}
+
+if (!import.meta.main) throw new Error("This module must be run as the main module");
+
+const args = parseArgs(Deno.args, {
+  string: ["port", "data-dir"],
+  boolean: ["help"],
+  alias: {
+    h: "help",
+    p: "port",
+    d: "data-dir",
+  },
+});
+
+if (args.help) {
+  console.log(`
+Tower Serve - Start Tower HTTP server
+
+USAGE:
+  serve [options]
+
+OPTIONS:
+  -p, --port         Server port (default: 3100)
+  -d, --data-dir     Data directory (default: /var/infra)
+  -h, --help         Show this help message
+
+EXAMPLE:
+  docker run -p 3100:3100 ghcr.io/dldc-packages/tower:latest
+`);
+  Deno.exit(0);
+}
+
+try {
+  const port = args.port ? parseInt(args.port, 10) : undefined;
+  const dataDir = args["data-dir"] as string | undefined;
+  await runServe({ port, dataDir });
+} catch (error) {
+  logger.error("Serve failed:", error);
+  Deno.exit(1);
 }

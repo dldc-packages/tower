@@ -1,3 +1,5 @@
+#!/usr/bin/env -S deno run --allow-all
+
 /**
  * Tower initialization command
  *
@@ -5,6 +7,7 @@
  */
 
 import { hash } from "@felix/bcrypt";
+import { parseArgs } from "@std/cli/parse-args";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { waitForHealthy } from "../core/health.ts";
@@ -413,4 +416,57 @@ function printSummary(intent: Intent): void {
   logger.info("  4. Access Grafana at https://" + intent.otel.domain);
   logger.info("");
   logger.info("For more information, visit: https://jsr.io/@dldc/tower");
+}
+
+if (!import.meta.main) throw new Error("This module must be run as the main module");
+
+const args = parseArgs(Deno.args, {
+  string: ["data-dir"],
+  boolean: ["help"],
+  alias: {
+    h: "help",
+    d: "data-dir",
+  },
+});
+
+if (args.help) {
+  console.log(`
+Tower Init - Bootstrap Tower infrastructure
+
+USAGE:
+  init [options]
+
+OPTIONS:
+  -d, --data-dir    Data directory (default: /var/infra)
+  -h, --help        Show this help message
+
+REQUIRED ENVIRONMENT VARIABLES:
+  ADMIN_EMAIL          Administrator email address
+  TOWER_DOMAIN         Domain for Tower HTTP server
+  REGISTRY_DOMAIN      Domain for Docker registry
+  OTEL_DOMAIN          Domain for OTEL observability
+  TOWER_PASSWORD       Tower admin password (min 16 chars)
+  REGISTRY_PASSWORD    Registry password (min 16 chars)
+
+EXAMPLE:
+  docker run --rm -it \\
+    -v /var/run/docker.sock:/var/run/docker.sock \\
+    -v /var/infra:/var/infra \\
+    -e ADMIN_EMAIL=admin@example.com \\
+    -e TOWER_DOMAIN=tower.example.com \\
+    -e REGISTRY_DOMAIN=registry.example.com \\
+    -e OTEL_DOMAIN=otel.example.com \\
+    -e TOWER_PASSWORD=mysecurepassword \\
+    -e REGISTRY_PASSWORD=mysecurepassword \\
+    ghcr.io/dldc-packages/tower:latest
+`);
+  Deno.exit(0);
+}
+
+try {
+  const dataDir = args["data-dir"] as string | undefined;
+  await runInit({ dataDir });
+} catch (error) {
+  logger.error("Init failed:", error);
+  Deno.exit(1);
 }

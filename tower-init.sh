@@ -121,7 +121,7 @@ docker run --rm -it \
     -e "OTEL_DOMAIN=$OTEL_DOMAIN" \
     -e "TOWER_PASSWORD=$TOWER_PASSWORD" \
     -e "REGISTRY_PASSWORD=$REGISTRY_PASSWORD" \
-    "$TOWER_IMAGE" init
+    "$TOWER_IMAGE" src/cli/init.ts
 
 if [[ $? -eq 0 ]]; then
     echo ""

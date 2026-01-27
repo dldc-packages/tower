@@ -1,9 +1,12 @@
+#!/usr/bin/env -S deno run --allow-all
+
 /**
  * Tower apply command
  *
  * Read intent.json from stdin and apply deployment.
  */
 
+import { parseArgs } from "@std/cli/parse-args";
 import { apply as applyIntent } from "../core/applier.ts";
 import { validateIntent } from "../core/validator.ts";
 import { logger } from "../utils/logger.ts";
@@ -67,4 +70,40 @@ async function readStdin(): Promise<string> {
   }
 
   return chunks.join("");
+}
+
+if (!import.meta.main) throw new Error("This module must be run as the main module");
+
+const args = parseArgs(Deno.args, {
+  string: ["data-dir"],
+  boolean: ["help"],
+  alias: {
+    h: "help",
+    d: "data-dir",
+  },
+});
+
+if (args.help) {
+  console.log(`
+Tower Apply - Apply deployment from intent.json
+
+USAGE:
+  cat intent.json | apply [options]
+
+OPTIONS:
+  -d, --data-dir     Data directory (default: /var/infra)
+  -h, --help         Show this help message
+
+EXAMPLE:
+  cat intent.json | docker run --rm -i ghcr.io/dldc-packages/tower:latest src/cli/apply.ts
+`);
+  Deno.exit(0);
+}
+
+try {
+  const dataDir = args["data-dir"] as string | undefined;
+  await runApply({ dataDir });
+} catch (error) {
+  logger.error("Apply failed:", error);
+  Deno.exit(1);
 }
