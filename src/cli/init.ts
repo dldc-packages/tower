@@ -314,31 +314,43 @@ async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void>
   await callTowerApply(intent, dataDir);
 }
 
-async function callTowerApply(intent: Intent, dataDir: string): Promise<void> {
-  const tempIntentPath = `${dataDir}/.intent.bootstrap.json`;
-  await writeTextFile(tempIntentPath, JSON.stringify(intent));
+async function callTowerApply(intent: Intent, _dataDir: string): Promise<void> {
+  const intentJson = JSON.stringify(intent);
 
-  const cmd = [
-    "docker",
-    "run",
-    "--rm",
-    "--network",
-    "tower_bootstrap",
-    "-v",
-    `${tempIntentPath}:/intent.json:ro`,
-    "curlimages/curl:8.1.2",
-    "-sS",
-    "-X",
-    "POST",
-    "-H",
-    "Content-Type: application/json",
-    "--data-binary",
-    "@/intent.json",
-    "http://tower:3100/apply",
-  ];
+  // Use Deno.Command to pipe intent JSON to docker exec
+  const command = new Deno.Command("docker", {
+    args: [
+      "exec",
+      "-i",
+      "tower",
+      "deno",
+      "run",
+      "--allow-all",
+      "/usr/local/bin/tower",
+      "apply",
+    ],
+    stdin: "piped",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
 
-  await execOrThrow(cmd);
-  logger.info("✓ /apply completed");
+  const process = command.spawn();
+  const writer = process.stdin.getWriter();
+
+  try {
+    await writer.write(new TextEncoder().encode(intentJson));
+    await writer.close();
+  } catch (error) {
+    logger.error("Failed to write intent to apply command:", error);
+    throw error;
+  }
+
+  const { success } = await process.output();
+  if (!success) {
+    throw new Error("Apply command failed");
+  }
+
+  logger.info("✓ Apply completed");
 }
 
 /**
