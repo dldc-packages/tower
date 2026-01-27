@@ -33,16 +33,40 @@ GitHub CI → Build & Push → Registry → Tower → Docker Compose → Apps
 
 ### 1. Bootstrap Tower (one-time)
 
+#### Option A: Using the init script (recommended, no Deno required)
+
+```bash
+# Run the init script directly (will prompt for configuration and passwords)
+curl -fsSL https://raw.githubusercontent.com/dldc-packages/tower/main/tower-init.sh | sudo bash
+```
+
+#### Option B: Using Docker directly
+
+```bash
+docker run --rm -it \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /var/infra:/var/infra \
+  -e ADMIN_EMAIL=admin@example.com \
+  -e TOWER_DOMAIN=tower.example.com \
+  -e REGISTRY_DOMAIN=registry.example.com \
+  -e OTEL_DOMAIN=otel.example.com \
+  -e TOWER_PASSWORD=your_secure_password_min_16_chars \
+  -e REGISTRY_PASSWORD=your_secure_password_min_16_chars \
+  ghcr.io/dldc-packages/tower:latest init --non-interactive
+```
+
+#### Option C: Using Deno (legacy)
+
 ```bash
 # Install prerequisites and initialize Tower stack
 sudo deno run -A jsr:@dldc/tower init
 ```
 
-This will:
+The init command will:
 
 - Check Docker & Docker Compose installation
-- Prompt for domains (tower, registry, OTEL)
-- Generate credentials (printed once - save them!)
+- Prompt for configuration (Option A) or read from environment variables (Option B)
+- Generate credentials (Option A/C) or use provided credentials (Option B)
 - Bootstrap the infrastructure stack
 - Start all services (Caddy, Registry, Tower, OTEL)
 

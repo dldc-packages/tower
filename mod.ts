@@ -12,7 +12,7 @@ import denoJson from "./deno.json" with { type: "json" };
 async function main() {
   const args = parseArgs(Deno.args, {
     string: ["port", "data-dir"],
-    boolean: ["help", "version"],
+    boolean: ["help", "version", "non-interactive"],
     alias: {
       h: "help",
       v: "version",
@@ -38,7 +38,8 @@ async function main() {
       case "init": {
         const { runInit } = await import("./src/cli/init.ts");
         const dataDir = args["data-dir"] as string | undefined;
-        await runInit({ dataDir });
+        const nonInteractive = args["non-interactive"] as boolean | undefined;
+        await runInit({ dataDir, nonInteractive });
         break;
       }
 
@@ -78,22 +79,35 @@ USAGE:
 COMMANDS:
   init              Bootstrap Tower infrastructure (one-time setup)
   serve             Start Tower HTTP server (runs inside container)
-    apply             Apply deployment from intent.json (reads from stdin)
+  apply             Apply deployment from intent.json (reads from stdin)
 
 OPTIONS:
-  -h, --help        Show this help message
-  -v, --version     Show version
-  -p, --port        Server port (default: 3100)
-  -d, --data-dir    Data directory (default: /var/infra)
+  -h, --help           Show this help message
+  -v, --version        Show version
+  -p, --port           Server port (default: 3100)
+  -d, --data-dir       Data directory (default: /var/infra)
+  --non-interactive    Run init non-interactively (reads from env vars)
 
 EXAMPLES:
-  # Bootstrap Tower
+  # Bootstrap Tower (interactive)
   sudo tower init
 
-    # Apply deployment from intent.json
-    cat intent.json | tower apply
-    # or
-    tower apply < intent.json
+  # Bootstrap Tower (non-interactive with env vars)
+  docker run --rm -it \\
+    -v /var/run/docker.sock:/var/run/docker.sock \\
+    -v /var/infra:/var/infra \\
+    -e ADMIN_EMAIL=admin@example.com \\
+    -e TOWER_DOMAIN=tower.example.com \\
+    -e REGISTRY_DOMAIN=registry.example.com \\
+    -e OTEL_DOMAIN=otel.example.com \\
+    -e TOWER_PASSWORD=mysecurepassword \\
+    -e REGISTRY_PASSWORD=mysecurepassword \\
+    ghcr.io/dldc-packages/tower:latest init --non-interactive
+
+  # Apply deployment from intent.json
+  cat intent.json | tower apply
+  # or
+  tower apply < intent.json
 
   # Start HTTP server
   tower serve --port 3100

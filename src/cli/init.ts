@@ -23,6 +23,7 @@ import { logger } from "../utils/logger.ts";
 
 export interface InitOptions {
   dataDir?: string;
+  nonInteractive?: boolean;
 }
 
 /**
@@ -37,6 +38,7 @@ export interface InitOptions {
  */
 export async function runInit(options: InitOptions = {}): Promise<void> {
   const dataDir = options.dataDir ?? DEFAULT_DATA_DIR;
+  const nonInteractive = options.nonInteractive ?? false;
 
   logger.info("🗼 Tower Initialization");
   logger.info("");
@@ -44,13 +46,15 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   // Step 1: Check prerequisites
   await checkPrerequisites();
 
-  // Step 2: Prompt for configuration
+  // Step 2: Get configuration (from env vars in non-interactive mode, or prompt user)
   logger.info("");
-  const config = await promptConfiguration();
+  const config = nonInteractive ? await loadConfigurationFromEnv() : await promptConfiguration();
 
-  // Step 3: Generate credentials
+  // Step 3: Generate or load credentials
   logger.info("");
-  const credentials = await generateCredentials(dataDir);
+  const credentials = nonInteractive
+    ? await loadCredentialsFromEnv(dataDir)
+    : await generateCredentials(dataDir);
 
   // Step 4: Generate initial intent
   logger.info("");
@@ -73,7 +77,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   // Step 8: Print final summary
   logger.info("");
-  printSummary(config, credentials, intent);
+  printSummary(config, credentials, intent, nonInteractive);
 }
 
 /**
@@ -124,6 +128,45 @@ async function checkPrerequisites(): Promise<void> {
     logger.info("See: https://docs.docker.com/engine/install/linux-postinstall/");
     throw new Error(`Docker socket permission denied: ${error}`);
   }
+}
+
+/**
+ * Load Tower configuration from environment variables
+ */
+async function loadConfigurationFromEnv(): Promise<{
+  adminEmail: string;
+  towerDomain: string;
+  registryDomain: string;
+  otelDomain: string;
+}> {
+  logger.info("Loading configuration from environment variables...");
+
+  const adminEmail = Deno.env.get("ADMIN_EMAIL");
+  const towerDomain = Deno.env.get("TOWER_DOMAIN");
+  const registryDomain = Deno.env.get("REGISTRY_DOMAIN");
+  const otelDomain = Deno.env.get("OTEL_DOMAIN");
+
+  if (!adminEmail || !adminEmail.includes("@") || !adminEmail.includes(".")) {
+    throw new Error("Invalid or missing ADMIN_EMAIL environment variable");
+  }
+  if (!towerDomain || !isValidDomain(towerDomain)) {
+    throw new Error("Invalid or missing TOWER_DOMAIN environment variable");
+  }
+  if (!registryDomain || !isValidDomain(registryDomain)) {
+    throw new Error("Invalid or missing REGISTRY_DOMAIN environment variable");
+  }
+  if (!otelDomain || !isValidDomain(otelDomain)) {
+    throw new Error("Invalid or missing OTEL_DOMAIN environment variable");
+  }
+
+  logger.info("  ✓ Configuration loaded from environment");
+
+  return {
+    adminEmail,
+    towerDomain,
+    registryDomain,
+    otelDomain,
+  };
 }
 
 /**
@@ -198,6 +241,64 @@ function isValidDomain(domain: string): boolean {
   const domainRegex =
     /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
   return domainRegex.test(domain);
+}
+
+/**
+ * Load credentials from environment variables and hash them
+ */
+async function loadCredentialsFromEnv(
+  dataDir: string,
+): Promise<{
+  towerPassword: string;
+  registryPassword: string;
+}> {
+  logger.info("Loading credentials from environment variables...");
+
+  // Create data directory if it doesn't exist
+  await ensureDir(dataDir);
+
+  const towerPassword = Deno.env.get("TOWER_PASSWORD");
+  const registryPassword = Deno.env.get("REGISTRY_PASSWORD");
+
+  const MIN_PASSWORD_LENGTH = 16;
+
+  if (!towerPassword || towerPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Invalid or missing TOWER_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
+    );
+  }
+  if (!registryPassword || registryPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Invalid or missing REGISTRY_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
+    );
+  }
+
+  logger.info("  Hashing passwords...");
+
+  // Hash passwords with bcrypt
+  const towerHash = await hash(towerPassword);
+  const registryHash = await hash(registryPassword);
+
+  // Create credentials object
+  const credentials: Credentials = {
+    tower: {
+      username: "tower",
+      password_hash: towerHash,
+    },
+    registry: {
+      username: "ci",
+      password_hash: registryHash,
+    },
+  };
+
+  // Write credentials to file
+  await writeJsonFile(`${dataDir}/credentials.json`, credentials);
+  logger.info("  ✓ Credentials loaded and saved");
+
+  return {
+    towerPassword,
+    registryPassword,
+  };
 }
 
 /**
@@ -394,6 +495,7 @@ function printSummary(
     registryPassword: string;
   },
   intent: Intent,
+  nonInteractive: boolean = false,
 ): void {
   logger.info("✓ Initialization complete!");
   logger.info("");
@@ -406,16 +508,20 @@ function printSummary(
   logger.info("Intent:");
   logger.info(JSON.stringify(intent, null, 2));
   logger.info("");
-  logger.info("⚠️  IMPORTANT: Save these credentials securely!");
-  logger.info("");
-  logger.info("Tower API credentials (for deployments):");
-  logger.info(`  Username: tower`);
-  logger.info(`  Password: ${credentials.towerPassword}`);
-  logger.info("");
-  logger.info("Registry credentials (for CI/CD image push):");
-  logger.info(`  Username: ci`);
-  logger.info(`  Password: ${credentials.registryPassword}`);
-  logger.info("");
+
+  // Only show credentials in interactive mode
+  if (!nonInteractive) {
+    logger.info("⚠️  IMPORTANT: Save these credentials securely!");
+    logger.info("");
+    logger.info("Tower API credentials (for deployments):");
+    logger.info(`  Username: tower`);
+    logger.info(`  Password: ${credentials.towerPassword}`);
+    logger.info("");
+    logger.info("Registry credentials (for CI/CD image push):");
+    logger.info(`  Username: ci`);
+    logger.info(`  Password: ${credentials.registryPassword}`);
+    logger.info("");
+  }
   logger.info("Next steps:");
   logger.info("  1. Configure DNS records to point to this server:");
   logger.info(`     - ${config.towerDomain} → this server's IP`);
