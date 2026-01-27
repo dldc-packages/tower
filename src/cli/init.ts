@@ -48,7 +48,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   // Step 2: Get configuration (from env vars in non-interactive mode, or prompt user)
   logger.info("");
-  const config = nonInteractive ? await loadConfigurationFromEnv() : await promptConfiguration();
+  const config = nonInteractive ? loadConfigurationFromEnv() : await promptConfiguration();
 
   // Step 3: Generate or load credentials
   logger.info("");
@@ -133,12 +133,12 @@ async function checkPrerequisites(): Promise<void> {
 /**
  * Load Tower configuration from environment variables
  */
-async function loadConfigurationFromEnv(): Promise<{
+function loadConfigurationFromEnv(): {
   adminEmail: string;
   towerDomain: string;
   registryDomain: string;
   otelDomain: string;
-}> {
+} {
   logger.info("Loading configuration from environment variables...");
 
   const adminEmail = Deno.env.get("ADMIN_EMAIL");
