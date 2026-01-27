@@ -104,6 +104,13 @@ export async function composeConfig(composeFile: string): Promise<void> {
 }
 
 /**
+ * Validate docker-compose.yml syntax (alias for composeConfig)
+ */
+export async function validateCompose(composeFile: string): Promise<void> {
+  await composeConfig(composeFile);
+}
+
+/**
  * Reload Caddy configuration
  */
 export async function caddyReload(): Promise<void> {

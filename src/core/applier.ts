@@ -7,10 +7,13 @@
 import type { Credentials, Intent } from "@dldc/tower/types";
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { generateCaddyJson } from "../generators/caddy.ts";
+import { generateCompose } from "../generators/compose.ts";
+import { composeUp, validateCompose } from "../utils/exec.ts";
 import { readJsonFile, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 import { loadCaddyConfig } from "./caddyAdmin.ts";
 import { validateDns } from "./dns.ts";
+import { waitForHealthy } from "./health.ts";
 import type { ResolvedService } from "./types.ts";
 import { validateIntent } from "./validator.ts";
 
@@ -46,7 +49,7 @@ function normalizeLocalRegistry(image: string, intent: Intent): string {
  * 2. Resolve services (infra + apps)
  * 3. Resolve semver ranges to digests
  * 4. Validate DNS for new domains
- * 5. Generate docker-compose.yml and Caddyfile
+ * 5. Generate docker-compose.yml and Caddy.json
  * 6. Validate generated configs
  * 7. Apply via docker compose up
  * 8. Wait for health checks
@@ -67,24 +70,69 @@ export async function apply(intent: Intent): Promise<void> {
   const services = resolveServices(validatedIntent, credentials);
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
+  // Step 3: Resolve semver ranges to digests
+  const resolvedImages = resolveSemver(validatedIntent);
+  logger.info(`✓ Resolved ${resolvedImages.size} image(s) to digests`);
+
   // Step 4: Validate DNS for all domains (naive parallel check)
   const domains = collectDomains(services);
   await validateDns(domains);
 
-  // TODO: Implement remaining steps
-  // See BLUEPRINT.md "Apply Flow" section for detailed steps
+  // Step 5: Generate docker-compose.yml and Caddy.json
+  const composeYaml = generateCompose(validatedIntent, resolvedImages);
+  const composePath = `${dataDir}/docker-compose.yml`;
 
-  // Step 5: Generate Caddy JSON config from services
   const caddyJson = generateCaddyJson(services, validatedIntent.adminEmail);
-  await writeTextFile(`${dataDir}/Caddy.json`, caddyJson);
+  const caddyPath = `${dataDir}/Caddy.json`;
+
+  // Step 6: Validate generated configs (before writing to disk)
+  // Write to temp file for validation
+  const tempComposePath = `${dataDir}/.docker-compose.yml.tmp`;
+  await writeTextFile(tempComposePath, composeYaml);
+
+  try {
+    await validateCompose(tempComposePath);
+    logger.info("✓ docker-compose.yml validated");
+
+    // Validation passed, write final file
+    await writeTextFile(composePath, composeYaml);
+    logger.info(`✓ Wrote docker-compose.yml to ${dataDir}`);
+
+    // Clean up temp file
+    await Deno.remove(tempComposePath).catch(() => {});
+  } catch (error) {
+    await Deno.remove(tempComposePath).catch(() => {});
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`docker-compose.yml validation failed: ${message}`);
+  }
+
+  await writeTextFile(caddyPath, caddyJson);
   logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
 
-  // Step 6: Validate and load config via Caddy admin API (atomic on success)
+  // Step 7: Apply via docker compose up
+  await composeUp(composePath);
+  logger.info("✓ Applied docker-compose.yml");
+
+  // Step 8: Wait for health checks
+  const containerNames = services.map((s) => s.name);
+  await waitForHealthy(containerNames, 60);
+  logger.info("✓ All containers healthy");
+
+  // Step 9: Reload Caddy (validate and load config via admin API)
   await loadCaddyConfig(caddyJson);
   logger.info("✓ Reloaded Caddy via admin API");
 
+  // Step 10: Save applied intent with resolved images
+  const appliedIntent = {
+    ...validatedIntent,
+    appliedAt: new Date().toISOString(),
+    resolvedImages: Object.fromEntries(resolvedImages),
+  };
+  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
+  logger.info("✓ Saved applied intent");
+
   const appCount = services.filter((s) => s.type === "app").length;
-  logger.info(`Deploying ${appCount} app(s)`);
+  logger.info(`✅ Deployment complete: ${appCount} app(s) running`);
 }
 
 function collectDomains(services: ResolvedService[]): string[] {
@@ -198,8 +246,9 @@ async function loadCredentials(dataDir: string): Promise<Credentials> {
 /**
  * Resolve semver ranges in intent to immutable digests
  */
-function _resolveSemver(_intent: Intent): Map<string, string> {
-  // TODO:
+function resolveSemver(_intent: Intent): Map<string, string> {
+  // TODO: Implement full semver resolution
+  // For now, return empty map (will use app.image as-is)
   // 1. Parse image refs
   // 2. For each with semver range:
   //    - Query registry for tags
@@ -207,17 +256,6 @@ function _resolveSemver(_intent: Intent): Map<string, string> {
   //    - Get digest for matched tag
   // 3. Return map of app name → resolved image@digest
 
-  throw new Error("Not implemented");
-}
-
-/**
- * Wait for all services to report healthy
- */
-function _waitForHealthy(_services: string[], _timeoutSeconds: number): void {
-  // TODO:
-  // 1. Poll docker inspect for health status
-  // 2. Wait until all services are "healthy"
-  // 3. Timeout if any service fails health checks
-
-  throw new Error("Not implemented");
+  logger.debug("Semver resolution not yet implemented, using image refs as-is");
+  return new Map<string, string>();
 }
