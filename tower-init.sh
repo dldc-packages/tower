@@ -112,6 +112,7 @@ echo "Running Tower initialization..."
 echo ""
 
 # Run docker with all the environment variables
+# When ENTRYPOINT is ["deno", "run", "--allow-all"], passing args appends them
 docker run --rm -it \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /var/infra:/var/infra \
@@ -121,7 +122,8 @@ docker run --rm -it \
     -e "OTEL_DOMAIN=$OTEL_DOMAIN" \
     -e "TOWER_PASSWORD=$TOWER_PASSWORD" \
     -e "REGISTRY_PASSWORD=$REGISTRY_PASSWORD" \
-    "$TOWER_IMAGE" src/cli/init.ts
+    "$TOWER_IMAGE" \
+    src/cli/init.ts
 
 if [[ $? -eq 0 ]]; then
     echo ""
