@@ -30,10 +30,12 @@ RUN deno install
 RUN useradd -m -u 1000 tower && \
     chown -R tower:tower /app && \
     mkdir -p /deno-dir && \
-    chown -R tower:tower /deno-dir
+    chown -R tower:tower /deno-dir && \
+    groupadd -f docker && \
+    usermod -aG docker tower
 
 # Note: Tower needs access to /var/run/docker.sock
-# This is mounted at runtime, not copied into image
+# The tower user is added to the docker group to access the socket
 
 USER tower
 
