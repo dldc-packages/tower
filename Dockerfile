@@ -26,18 +26,8 @@ COPY . .
 # Cache dependencies
 RUN deno install
 
-# Create non-root user and ensure deno cache is writable
-RUN useradd -m -u 1000 tower && \
-    chown -R tower:tower /app && \
-    mkdir -p /deno-dir && \
-    chown -R tower:tower /deno-dir && \
-    groupadd -f docker && \
-    usermod -aG docker tower
-
-# Note: Tower needs access to /var/run/docker.sock
-# The tower user is added to the docker group to access the socket
-
-USER tower
+# Note: Tower runs as root to access /var/run/docker.sock and write to /var/infra
+USER root
 
 # Expose Tower HTTP API
 EXPOSE 3000
