@@ -5,8 +5,9 @@
  */
 
 import * as v from "@valibot/valibot";
-import type { App, HealthCheck, Intent } from "../types.ts";
+import type { App, Auth, HealthCheck, Intent, Port, Volume } from "../types.ts";
 import { ValidationError } from "../utils/errors.ts";
+import { AuthScope, BasicAuthUser } from "./types.ts";
 
 // Domain validation regex
 const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
@@ -60,7 +61,7 @@ const healthCheckSchema: v.GenericSchema<HealthCheck | undefined> = v.optional(
 );
 
 // Volume schema
-const volumeSchema = v.union([
+const volumeSchema: v.GenericSchema<Volume> = v.union([
   v.object({
     type: v.literal("bind"),
     source: v.string(),
@@ -76,24 +77,24 @@ const volumeSchema = v.union([
 ]);
 
 // Port schema
-const portSchema = v.object({
+const portSchema: v.GenericSchema<Port> = v.object({
   host: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
   container: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
   protocol: v.optional(v.picklist(["tcp", "udp"])),
 });
 
 // Auth schema
-const basicAuthUserSchema = v.object({
+const basicAuthUserSchema: v.GenericSchema<BasicAuthUser> = v.object({
   username: v.string(),
   passwordHash: v.string(),
 });
 
-const authScopeSchema = v.object({
+const authScopeSchema: v.GenericSchema<AuthScope> = v.object({
   path: v.optional(v.array(v.string())),
   method: v.optional(v.array(v.string())),
 });
 
-const authSchema = v.optional(
+const authSchema: v.GenericSchema<Auth | undefined> = v.optional(
   v.object({
     policy: v.picklist(["none", "basic_all", "basic_write_only", "basic_scoped"]),
     basicUsers: v.optional(v.array(basicAuthUserSchema)),
