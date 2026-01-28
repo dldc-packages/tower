@@ -8,9 +8,8 @@ import type { Intent } from "@dldc/tower/types";
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
-import { composeUpWithWait, validateCompose } from "../utils/exec.ts";
+import { caddyReload, composeUpWithWait, validateCompose } from "../utils/exec.ts";
 import { writeTextFile } from "../utils/fs.ts";
-import { loadCaddyConfig } from "./caddyAdmin.ts";
 import { validateDns } from "./dns.ts";
 import { collectDomains, resolveServices } from "./services.ts";
 import { validateIntent } from "./validator.ts";
@@ -81,7 +80,12 @@ export async function apply(intent: Intent): Promise<void> {
   console.log("✓ Applied docker-compose.yml and waited for health checks");
 
   // Step 7: Reload Caddy (validate and load config via admin API)
-  await loadCaddyConfig(caddyJson);
+  await writeTextFile(caddyPath, caddyJson);
+  console.log(`Wrote Caddy config to ${caddyPath}`);
+
+  // Reload Caddy in the container
+  await caddyReload();
+  console.log("✓ Caddy config reloaded via docker exec");
   console.log("✓ Reloaded Caddy via admin API");
 
   // Step 8: Save applied intent with resolved images
