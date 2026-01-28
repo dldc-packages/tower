@@ -40,7 +40,8 @@ export function normalizeLocalRegistry(image: string, intent: Intent): string {
 export function collectDomains(services: ResolvedService[]): string[] {
   const domains = new Set<string>();
   for (const svc of services) {
-    if (svc.domain) domains.add(svc.domain);
+    const domain = svc.domain;
+    if (domain) domains.add(domain);
   }
   return Array.from(domains);
 }
@@ -57,11 +58,13 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
 
   // Add infrastructure services
   services.push({
+    kind: "infra",
     name: "caddy",
+    image: "caddy:2",
     domain: intent.tower.domain,
     port: 80,
     imageRef: "caddy:2",
-    image: "caddy:2",
+    imageDigest: "caddy:2",
     restart: "unless-stopped",
     ports: [
       { host: 80, container: 80 },
@@ -81,20 +84,24 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
   });
 
   services.push({
+    kind: "infra",
     name: "registry",
+    image: "registry:2",
     domain: intent.registry.domain,
     port: 5000,
     imageRef: "registry:2",
-    image: "registry:2",
+    imageDigest: "registry:2",
     upstreamName: "registry",
     upstreamPort: 5000,
-    authPolicy: "basic_write_only",
-    authBasicUsers: [
-      {
-        username: intent.registry.username,
-        passwordHash: intent.registry.passwordHash,
-      },
-    ],
+    auth: {
+      policy: "basic_write_only",
+      basicUsers: [
+        {
+          username: intent.registry.username,
+          passwordHash: intent.registry.passwordHash,
+        },
+      ],
+    },
     restart: "unless-stopped",
     volumes: [
       { type: "named", name: "registry_data", target: "/var/lib/registry" },
@@ -107,20 +114,24 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
 
   const towerImage = `ghcr.io/dldc-packages/tower:${intent.tower.version}`;
   services.push({
+    kind: "infra",
     name: "tower",
+    image: towerImage,
     domain: intent.tower.domain,
     port: 3000,
     imageRef: towerImage,
-    image: towerImage,
+    imageDigest: towerImage,
     upstreamName: "tower",
     upstreamPort: 3100,
-    authPolicy: "basic_all",
-    authBasicUsers: [
-      {
-        username: intent.tower.username,
-        passwordHash: intent.tower.passwordHash,
-      },
-    ],
+    auth: {
+      policy: "basic_all",
+      basicUsers: [
+        {
+          username: intent.tower.username,
+          passwordHash: intent.tower.passwordHash,
+        },
+      ],
+    },
     restart: "unless-stopped",
     volumes: [
       { type: "bind", source: dataDir, target: dataDir },
@@ -135,14 +146,18 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
 
   const otelImage = `grafana/otel-lgtm:${intent.otel.version}`;
   services.push({
+    kind: "infra",
     name: "otel",
+    image: otelImage,
     domain: intent.otel.domain,
     port: 3000,
     imageRef: otelImage,
-    image: otelImage,
+    imageDigest: otelImage,
     upstreamName: "otel-lgtm",
     upstreamPort: 3000,
-    authPolicy: "none",
+    auth: {
+      policy: "none",
+    },
     restart: "unless-stopped",
     volumes: [
       { type: "named", name: "otel_lgtm_data", target: "/data" },
@@ -155,28 +170,24 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       const normalizedImageRef = normalizeLocalRegistry(app.image, intent);
       const resolvedImage = await resolveImageToDigest(normalizedImageRef, intent);
 
-      const environment: Record<string, string> = {
-        ...(app.env ?? {}),
-        ...(app.secrets ?? {}),
-        OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
-      };
-
       if (resolvedImage) {
         logger.debug(`Resolved ${app.name}: ${app.image} → ${resolvedImage}`);
       }
 
-      return {
-        name: app.name,
-        domain: app.domain,
+      const normalizedApp = {
+        ...app,
         port: app.port ?? 3000,
+      };
+
+      return {
+        kind: "app" as const,
+        ...normalizedApp,
         imageRef: app.image,
-        image: resolvedImage ?? normalizedImageRef,
+        imageDigest: resolvedImage ?? normalizedImageRef,
         upstreamName: app.name,
-        upstreamPort: app.port ?? 3000,
-        authPolicy: "none" as const,
+        upstreamPort: normalizedApp.port,
+        auth: app.auth ?? { policy: "none" as const },
         restart: "unless-stopped",
-        env: environment,
-        healthCheck: app.healthCheck,
       };
     }),
   );

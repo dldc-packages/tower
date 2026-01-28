@@ -13,38 +13,45 @@ export function generateCaddyJson(
 ): string {
   logger.info("Generating Caddy JSON config...");
 
-  const domains = Array.from(new Set(services.map((s) => s.domain).filter(Boolean)));
+  const domains = Array.from(
+    new Set(services.map((s) => s.domain).filter(Boolean)),
+  );
   const routes: Array<Record<string, unknown>> = [];
 
   for (const svc of services) {
-    if (!svc.domain || svc.name === "caddy") continue;
+    const serviceName = svc.name;
+    const domain = svc.domain;
+    const port = svc.port;
 
-    const upstreamPort = svc.upstreamPort ?? svc.port;
-    const upstreamDial = `${svc.upstreamName ?? svc.name}:${upstreamPort}`;
-    const accounts = toBasicAccounts(svc.authBasicUsers);
+    if (!domain || serviceName === "caddy") continue;
+
+    const upstreamPort = svc.upstreamPort ?? port;
+    const upstreamDial = `${svc.upstreamName ?? serviceName}:${upstreamPort}`;
+    const auth = svc.auth;
+    const accounts = toBasicAccounts(auth?.basicUsers);
 
     if (
-      (svc.authPolicy === "basic_all" || svc.authPolicy === "basic_write_only" ||
-        svc.authPolicy === "basic_scoped") && accounts.length === 0
+      (auth?.policy === "basic_all" || auth?.policy === "basic_write_only" ||
+        auth?.policy === "basic_scoped") && accounts.length === 0
     ) {
       logger.warn(
-        `Service "${svc.name}" uses authPolicy=${svc.authPolicy} but has no basic auth users configured`,
+        `Service "${serviceName}" uses auth policy=${auth?.policy} but has no basic auth users configured`,
       );
     }
 
-    if (svc.authPolicy === "basic_all") {
-      routes.push(buildBasicAllRoute(svc.domain, upstreamDial, accounts));
+    if (auth?.policy === "basic_all") {
+      routes.push(buildBasicAllRoute(domain, upstreamDial, accounts));
       continue;
     }
 
-    if (svc.authPolicy === "basic_write_only" || svc.authPolicy === "basic_scoped") {
-      const scopes = normalizeScopes(svc.authScopes, svc.authPolicy);
-      routes.push(buildScopedRoute(svc.domain, upstreamDial, accounts, scopes));
+    if (auth?.policy === "basic_write_only" || auth?.policy === "basic_scoped") {
+      const scopes = normalizeScopes(auth?.scopes, auth?.policy);
+      routes.push(buildScopedRoute(domain, upstreamDial, accounts, scopes));
       continue;
     }
 
     // Default: no auth, reverse proxy
-    routes.push(buildOpenRoute(svc.domain, upstreamDial));
+    routes.push(buildOpenRoute(domain, upstreamDial));
   }
 
   const config = {

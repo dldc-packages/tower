@@ -88,8 +88,8 @@ export async function apply(intent: Intent): Promise<void> {
   // Step 8: Save applied intent with resolved images
   const resolvedImages = Object.fromEntries(
     services
-      .filter((s) => s.imageRef !== s.image)
-      .map((s) => [s.name, s.image]),
+      .filter((s) => s.kind === "app" && s.imageRef !== s.imageDigest)
+      .map((s) => [s.name, s.imageDigest]),
   );
 
   const appliedIntent = {

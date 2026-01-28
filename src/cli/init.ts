@@ -354,8 +354,8 @@ async function applyInitialStack(
   // Step 5: Save initial intent.json
   const resolvedImages = Object.fromEntries(
     services
-      .filter((s) => s.imageRef !== s.image)
-      .map((s) => [s.name, s.image]),
+      .filter((s) => s.kind === "app" && s.imageRef !== s.imageDigest)
+      .map((s) => [s.name, s.imageDigest]),
   );
 
   const appliedIntent = {

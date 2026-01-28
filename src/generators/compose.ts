@@ -19,7 +19,7 @@ export function generateCompose(services: ResolvedService[]): string {
   for (const service of services) {
     if (service.volumes) {
       for (const vol of service.volumes) {
-        if (vol.type === "named") {
+        if (vol.type === "named" && vol.name) {
           namedVolumes[vol.name] = {};
         }
       }
@@ -29,7 +29,8 @@ export function generateCompose(services: ResolvedService[]): string {
   // Map services to docker-compose format
   const composeServices: Record<string, unknown> = {};
   for (const service of services) {
-    composeServices[service.name] = serviceToCompose(service);
+    const serviceName = service.name;
+    composeServices[serviceName] = serviceToCompose(service);
   }
 
   const compose = {
@@ -49,17 +50,18 @@ export function generateCompose(services: ResolvedService[]): string {
  * Convert a ResolvedService to a docker-compose service definition
  */
 function serviceToCompose(service: ResolvedService): Record<string, unknown> {
-  const environment: Record<string, string> = {
-    ...service.env,
-  };
-
-  // Include secrets if present
-  if (service.secrets) {
-    Object.assign(environment, service.secrets);
-  }
+  const environment: Record<string, string> = service.kind === "app"
+    ? {
+      ...(service.env ?? {}),
+      ...(service.secrets ?? {}),
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
+    }
+    : {
+      ...(service.env ?? {}),
+    };
 
   const composeService: Record<string, unknown> = {
-    image: service.image,
+    image: service.imageDigest,
     networks: ["app_network"],
     restart: service.restart ?? "unless-stopped",
   };
@@ -83,9 +85,15 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   if (service.volumes && service.volumes.length > 0) {
     composeService.volumes = service.volumes.map((vol) => {
       if (vol.type === "bind") {
+        if (!vol.source) {
+          throw new Error(`Bind volume for service "${service.name}" missing source`);
+        }
         const roFlag = vol.readonly ? ":ro" : "";
         return `${vol.source}:${vol.target}${roFlag}`;
       } else {
+        if (!vol.name) {
+          throw new Error(`Named volume for service "${service.name}" missing name`);
+        }
         return `${vol.name}:${vol.target}`;
       }
     });
@@ -97,14 +105,15 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   }
 
   // Add health check if defined
-  if (service.healthCheck) {
-    const port = service.port ?? 3000;
-    const path = service.healthCheck.path ?? "";
-    const interval = service.healthCheck.interval ?? 10;
-    const timeout = service.healthCheck.timeout ?? 5;
-    const retries = service.healthCheck.retries ?? 3;
+  const healthCheck = service.healthCheck;
+  if (healthCheck) {
+    const port = healthCheck.port ?? service.port ?? 3000;
+    const path = healthCheck.path ?? "";
+    const interval = healthCheck.interval ?? 10;
+    const timeout = healthCheck.timeout ?? 5;
+    const retries = healthCheck.retries ?? 3;
 
-    const testCmd = service.healthCheck.path
+    const testCmd = healthCheck.path
       ? ["CMD", "curl", "-f", `http://localhost:${port}${path}`]
       : ["CMD", "true"];
 

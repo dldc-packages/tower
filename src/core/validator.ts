@@ -59,6 +59,48 @@ const healthCheckSchema: v.GenericSchema<HealthCheck | undefined> = v.optional(
   }),
 );
 
+// Volume schema
+const volumeSchema = v.union([
+  v.object({
+    type: v.literal("bind"),
+    source: v.string(),
+    target: v.string(),
+    readonly: v.optional(v.boolean()),
+  }),
+  v.object({
+    type: v.literal("named"),
+    name: v.string(),
+    target: v.string(),
+    readonly: v.optional(v.boolean()),
+  }),
+]);
+
+// Port schema
+const portSchema = v.object({
+  host: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
+  container: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
+  protocol: v.optional(v.picklist(["tcp", "udp"])),
+});
+
+// Auth schema
+const basicAuthUserSchema = v.object({
+  username: v.string(),
+  passwordHash: v.string(),
+});
+
+const authScopeSchema = v.object({
+  path: v.optional(v.array(v.string())),
+  method: v.optional(v.array(v.string())),
+});
+
+const authSchema = v.optional(
+  v.object({
+    policy: v.picklist(["none", "basic_all", "basic_write_only", "basic_scoped"]),
+    basicUsers: v.optional(v.array(basicAuthUserSchema)),
+    scopes: v.optional(v.array(authScopeSchema)),
+  }),
+);
+
 // App schema
 const appSchema: v.GenericSchema<App> = v.object({
   name: appNameSchema,
@@ -68,6 +110,11 @@ const appSchema: v.GenericSchema<App> = v.object({
   env: v.optional(v.record(v.string(), v.string())),
   secrets: v.optional(v.record(v.string(), v.string())),
   healthCheck: healthCheckSchema,
+  restart: v.optional(v.string()),
+  volumes: v.optional(v.array(volumeSchema)),
+  ports: v.optional(v.array(portSchema)),
+  command: v.optional(v.array(v.string())),
+  auth: authSchema,
 });
 
 // Intent schema
