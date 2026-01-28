@@ -56,6 +56,18 @@ export interface Intent {
   apps: App[];
 }
 
+/** Discriminated union for volume types */
+export type Volume =
+  | { type: "bind"; source: string; target: string; readonly?: boolean }
+  | { type: "named"; name: string; target: string; readonly?: boolean };
+
+/** Port binding configuration */
+export interface Port {
+  host: number;
+  container: number;
+  protocol?: "tcp" | "udp";
+}
+
 /**
  * Application service configuration
  */
@@ -91,20 +103,10 @@ export interface App {
   restart?: string;
 
   /** Docker volumes to mount (bind or named) */
-  volumes?: Array<{
-    type: "bind" | "named";
-    source?: string;
-    name?: string;
-    target: string;
-    readonly?: boolean;
-  }>;
+  volumes?: Volume[];
 
   /** Port bindings (host:container) */
-  ports?: Array<{
-    host: number;
-    container: number;
-    protocol?: "tcp" | "udp";
-  }>;
+  ports?: Port[];
 
   /** Container startup command */
   command?: string[];
@@ -113,20 +115,22 @@ export interface App {
    * Authentication configuration
    * Controls access restrictions and credential validation
    */
-  auth?: {
-    /** Authentication policy */
-    policy: "none" | "basic_all" | "basic_write_only" | "basic_scoped";
-    /** Basic auth user credentials (username and bcrypt password hashes) */
-    basicUsers?: Array<{
-      username: string;
-      passwordHash: string;
-    }>;
-    /** Optional path/method restrictions for scoped auth */
-    scopes?: Array<{
-      path?: string[];
-      method?: string[];
-    }>;
-  };
+  auth?: Auth;
+}
+
+export interface Auth {
+  /** Authentication policy */
+  policy: "none" | "basic_all" | "basic_write_only" | "basic_scoped";
+  /** Basic auth user credentials (username and bcrypt password hashes) */
+  basicUsers?: Array<{
+    username: string;
+    passwordHash: string;
+  }>;
+  /** Optional path/method restrictions for scoped auth */
+  scopes?: Array<{
+    path?: string[];
+    method?: string[];
+  }>;
 }
 
 /**
@@ -147,48 +151,4 @@ export interface HealthCheck {
 
   /** Number of retries before marking unhealthy (default: 3) */
   retries?: number;
-}
-
-/**
- * Applied intent - stores resolved state after deployment
- */
-export interface AppliedIntent extends Intent {
-  /** Timestamp when this intent was applied */
-  appliedAt: string;
-
-  /** Resolved image digests for all apps */
-  resolvedImages: Record<string, string>;
-}
-
-/**
- * Deployment status response
- */
-export interface DeploymentStatus {
-  /** Current applied intent (if any) */
-  appliedIntent?: AppliedIntent;
-
-  /** Running services and their health */
-  services: ServiceStatus[];
-
-  /** Active domains and their routes */
-  domains: DomainStatus[];
-}
-
-/**
- * Individual service status
- */
-export interface ServiceStatus {
-  name: string;
-  state: "running" | "starting" | "unhealthy" | "stopped";
-  health?: "healthy" | "unhealthy" | "starting";
-  image?: string;
-}
-
-/**
- * Domain routing status
- */
-export interface DomainStatus {
-  domain: string;
-  target: string;
-  tlsEnabled: boolean;
 }

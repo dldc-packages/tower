@@ -8,9 +8,8 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { DEFAULT_DATA_DIR, DEFAULT_PORT } from "../config.ts";
 import { apply } from "../core/applier.ts";
-import { getContainerHealth } from "../core/health.ts";
 import { validateIntent } from "../core/validator.ts";
-import type { AppliedIntent, DeploymentStatus, Intent } from "../types.ts";
+import type { Intent } from "../types.ts";
 import { fileExists, readJsonFile } from "../utils/fs.ts";
 import { createConsoleSink, createLogger, createStreamSink, logger } from "../utils/logger.ts";
 
@@ -188,87 +187,22 @@ async function handleStatus(_req: Request, dataDir: string): Promise<Response> {
   try {
     // Load applied intent
     const appliedPath = `${dataDir}/intent.json`;
-    let appliedIntent: AppliedIntent | undefined;
+    let appliedIntent: Intent | undefined;
 
     if (await fileExists(appliedPath)) {
-      appliedIntent = await readJsonFile<AppliedIntent>(appliedPath);
+      appliedIntent = await readJsonFile<Intent>(appliedPath);
     }
-
-    // Get service statuses
-    const serviceNames = [
-      "caddy",
-      "tower",
-      "registry",
-      "otel-lgtm",
-      ...(appliedIntent?.apps.map((app) => app.name) ?? []),
-    ];
-
-    const services = await Promise.all(
-      serviceNames.map(async (name) => {
-        const health = await getContainerHealth(name);
-        return {
-          name,
-          state: health.status as "running" | "starting" | "unhealthy" | "stopped",
-          health: health.health === "none" ? undefined : health.health,
-        };
-      }),
-    );
-
-    // Build status response
-    const status: DeploymentStatus = {
-      appliedIntent,
-      services,
-      domains: appliedIntent
-        ? [
-          {
-            domain: appliedIntent.tower.domain,
-            target: "tower:3100",
-            tlsEnabled: true,
-          },
-          {
-            domain: appliedIntent.registry.domain,
-            target: "registry:5000",
-            tlsEnabled: true,
-          },
-          {
-            domain: appliedIntent.otel.domain,
-            target: "otel-lgtm:3000",
-            tlsEnabled: true,
-          },
-          ...appliedIntent.apps.map((app) => ({
-            domain: app.domain,
-            target: `${app.name}:${app.port ?? 3000}`,
-            tlsEnabled: true,
-          })),
-        ]
-        : [],
-    };
 
     // Format as plain text
     const lines: string[] = ["Tower Status", "=".repeat(60), ""];
 
     if (appliedIntent) {
-      lines.push(`Applied: ${appliedIntent.appliedAt}`);
-      lines.push(`Apps: ${appliedIntent.apps.length}`);
+      lines.push(`Intent:`);
+      lines.push(JSON.stringify(appliedIntent, null, 2));
       lines.push("");
     } else {
       lines.push("No deployment applied yet");
       lines.push("");
-    }
-
-    lines.push("Services:");
-    for (const service of status.services) {
-      const healthStr = service.health ? ` (${service.health})` : "";
-      lines.push(`  ${service.name}: ${service.state}${healthStr}`);
-    }
-    lines.push("");
-
-    if (status.domains.length > 0) {
-      lines.push("Domains:");
-      for (const domain of status.domains) {
-        const tls = domain.tlsEnabled ? "🔒" : "  ";
-        lines.push(`  ${tls} ${domain.domain} → ${domain.target}`);
-      }
     }
 
     return new Response(lines.join("\n"), {

@@ -14,18 +14,6 @@ export interface AuthScope {
   method?: string[];
 }
 
-/** Discriminated union for volume types */
-export type Volume =
-  | { type: "bind"; source: string; target: string; readonly?: boolean }
-  | { type: "named"; name: string; target: string; readonly?: boolean };
-
-/** Port binding configuration */
-export interface Port {
-  host: number;
-  container: number;
-  protocol?: "tcp" | "udp";
-}
-
 export interface ResolvedService extends App {
   /** Service kind */
   kind: "infra" | "app";
