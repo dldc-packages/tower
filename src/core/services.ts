@@ -47,8 +47,12 @@ export function normalizeLocalRegistry(image: string, intent: Intent): string {
 export function collectDomains(services: ResolvedService[]): string[] {
   const domains = new Set<string>();
   for (const svc of services) {
-    const domain = svc.domain;
-    if (domain) domains.add(domain);
+    const ingressList = svc.ingress ?? [];
+    for (const ingress of ingressList) {
+      for (const domain of ingress.domains) {
+        domains.add(domain);
+      }
+    }
   }
   return Array.from(domains);
 }
@@ -72,14 +76,9 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     kind: "infra",
     name: "caddy",
     image: "caddy:2",
-    domain: intent.tower.domain,
-    port: 80,
+    ingress: [{ domains: [intent.tower.domain], port: 80 }],
     imageDigest: "caddy:2",
     restart: "unless-stopped",
-    ports: [
-      { host: 80, container: 80 },
-      { host: 443, container: 443 },
-    ],
     volumes: [
       {
         type: "bind",
@@ -107,8 +106,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     kind: "infra",
     name: "registry",
     image: "registry:2",
-    domain: intent.registry.domain,
-    port: 5000,
+    ingress: [{ domains: [intent.registry.domain], port: 5000 }],
     imageDigest: "registry:2",
     auth: {
       kind: "basic",
@@ -138,8 +136,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     kind: "infra",
     name: "tower",
     image: towerImage,
-    domain: intent.tower.domain,
-    port: 3000,
+    ingress: [{ domains: [intent.tower.domain], port: 3000 }],
     imageDigest: towerImage,
     auth: {
       kind: "basic",
@@ -171,15 +168,9 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     kind: "infra",
     name: "otel-lgtm",
     image: otelImage,
-    domain: intent.otel.domain,
-    port: 3000,
+    ingress: [{ domains: [intent.otel.domain], port: 3000 }],
     imageDigest: otelImage,
     restart: "unless-stopped",
-    ports: [
-      { host: 3000, container: 3000 },
-      { host: 4317, container: 4317 },
-      { host: 4318, container: 4318 },
-    ],
     volumes: [
       { type: "named", name: "otel_lgtm_data", target: "/data" },
     ],

@@ -73,13 +73,8 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
     );
   }
 
-  // Add ports if defined
-  if (service.ports && service.ports.length > 0) {
-    composeService.ports = service.ports.map((p) => {
-      const proto = p.protocol ? `/${p.protocol}` : "";
-      return `${p.host}:${p.container}${proto}`;
-    });
-  }
+  // Get the first port from ingress for health checks and internal communication
+  const ingressPort = getFirstIngressPort(service);
 
   // Add volumes if defined
   if (service.volumes && service.volumes.length > 0) {
@@ -107,7 +102,7 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   // Add health check if defined
   const healthCheck = service.healthCheck;
   if (healthCheck) {
-    const port = healthCheck.port ?? service.port ?? 3000;
+    const port = healthCheck.port ?? ingressPort ?? 3000;
     const path = healthCheck.path ?? "";
     const interval = healthCheck.interval ?? 10;
     const timeout = healthCheck.timeout ?? 5;
@@ -126,4 +121,20 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   }
 
   return composeService;
+}
+
+/**
+ * Get the first port from ingress array, or undefined if no ingress
+ */
+function getFirstIngressPort(service: ResolvedService): number | undefined {
+  // For infrastructure services, they still have the old domain/port structure temporarily
+  const infraService = service as unknown as { ingress?: { port: number }[]; port?: number };
+  if (infraService.ingress && infraService.ingress.length > 0) {
+    return infraService.ingress[0].port;
+  }
+  // Fallback to old port field for infra services during migration
+  if (infraService.port) {
+    return infraService.port;
+  }
+  return undefined;
 }

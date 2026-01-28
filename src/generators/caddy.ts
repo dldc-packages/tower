@@ -13,28 +13,34 @@ export function generateCaddyJson(
 ): string {
   logger.info("Generating Caddy JSON config...");
 
-  const domains = Array.from(
-    new Set(services.map((s) => s.domain).filter(Boolean)),
-  );
+  const domains = new Set<string>();
   const routes: Array<Record<string, unknown>> = [];
 
   for (const svc of services) {
     const serviceName = svc.name;
-    const domain = svc.domain;
-    const port = svc.port;
 
-    if (!domain || serviceName === "caddy") continue;
+    // Skip caddy service itself
+    if (serviceName === "caddy") continue;
 
-    const upstreamDial = `${serviceName}:${port}`;
-    const auth = svc.auth;
+    const ingressList = svc.ingress ?? [];
 
-    if (auth) {
-      // Service requires basic auth for all requests
-      const account = { username: auth.username, password: auth.passwordHash };
-      routes.push(buildBasicAuthRoute(domain, upstreamDial, account));
-    } else {
-      // No auth required, simple reverse proxy
-      routes.push(buildOpenRoute(domain, upstreamDial));
+    for (const ingress of ingressList) {
+      const upstreamDial = `${serviceName}:${ingress.port}`;
+      const auth = svc.auth;
+
+      // Add all domains from this ingress to the domain set
+      for (const domain of ingress.domains) {
+        domains.add(domain);
+      }
+
+      if (auth) {
+        // Service requires basic auth for all requests
+        const account = { username: auth.username, password: auth.passwordHash };
+        routes.push(buildBasicAuthRoute(ingress.domains, upstreamDial, account));
+      } else {
+        // No auth required, simple reverse proxy
+        routes.push(buildOpenRoute(ingress.domains, upstreamDial));
+      }
     }
   }
 
@@ -44,7 +50,7 @@ export function generateCaddyJson(
         automation: {
           policies: [
             {
-              subjects: domains,
+              subjects: Array.from(domains),
               issuers: [{ module: "acme", email: adminEmail }],
             },
           ],
@@ -85,12 +91,12 @@ export function generateCaddyJson(
 }
 
 function buildBasicAuthRoute(
-  domain: string,
+  domains: string[],
   upstreamDial: string,
   account: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
-    match: [{ host: [domain] }],
+    match: [{ host: domains }],
     handle: [
       {
         handler: "authentication",
@@ -102,9 +108,9 @@ function buildBasicAuthRoute(
   };
 }
 
-function buildOpenRoute(domain: string, upstreamDial: string): Record<string, unknown> {
+function buildOpenRoute(domains: string[], upstreamDial: string): Record<string, unknown> {
   return {
-    match: [{ host: [domain] }],
+    match: [{ host: domains }],
     handle: [{ handler: "reverse_proxy", upstreams: [{ dial: upstreamDial }] }],
     terminal: true,
   };

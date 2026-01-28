@@ -5,7 +5,7 @@
  */
 
 import * as v from "@valibot/valibot";
-import type { App, HealthCheck, Intent, Port, Volume } from "../types.ts";
+import type { App, HealthCheck, Intent, Volume } from "../types.ts";
 import { ValidationError } from "../utils/errors.ts";
 
 // Domain validation regex
@@ -75,11 +75,17 @@ const volumeSchema: v.GenericSchema<Volume> = v.union([
   }),
 ]);
 
-// Port schema
-const portSchema: v.GenericSchema<Port> = v.object({
-  host: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
-  container: v.pipe(v.number(), v.minValue(1, "Port must be positive")),
-  protocol: v.optional(v.picklist(["tcp", "udp"])),
+// Ingress schema
+const ingressSchema: v.GenericSchema<{ domains: string[]; port: number }> = v.object({
+  domains: v.pipe(
+    v.array(domainSchema),
+    v.minLength(1, "Ingress must have at least one domain"),
+  ),
+  port: v.pipe(
+    v.number(),
+    v.minValue(1, "Port must be between 1 and 65535"),
+    v.maxValue(65535, "Port must be between 1 and 65535"),
+  ),
 });
 
 // Auth schema (simple: either undefined or {kind: 'basic', username, passwordHash})
@@ -95,14 +101,17 @@ const authSchema = v.optional(
 const appSchema: v.GenericSchema<App> = v.object({
   name: appNameSchema,
   image: v.pipe(v.string(), v.minLength(1, "Image must not be empty")),
-  domain: domainSchema,
-  port: v.optional(v.pipe(v.number(), v.minValue(1, "Port must be positive"))),
+  ingress: v.optional(
+    v.pipe(
+      v.array(ingressSchema),
+      v.minLength(1, "If provided, ingress must have at least one entry"),
+    ),
+  ),
   env: v.optional(v.record(v.string(), v.string())),
   secrets: v.optional(v.record(v.string(), v.string())),
   healthCheck: healthCheckSchema,
   restart: v.optional(v.string()),
   volumes: v.optional(v.array(volumeSchema)),
-  ports: v.optional(v.array(portSchema)),
   command: v.optional(v.array(v.string())),
   auth: authSchema,
 });
@@ -188,26 +197,31 @@ export function validateIntent(data: unknown): Intent {
   allDomains.set(intent.otel.domain, "otel");
 
   for (const app of intent.apps) {
-    if (allDomains.has(app.domain)) {
-      const existing = allDomains.get(app.domain);
-      throw new ValidationError(
-        `Domain "${app.domain}" is already used by ${existing}`,
-      );
+    // Check all domains in all ingress entries
+    if (app.ingress) {
+      for (const ingress of app.ingress) {
+        for (const domain of ingress.domains) {
+          if (allDomains.has(domain)) {
+            const existing = allDomains.get(domain);
+            throw new ValidationError(
+              `Domain "${domain}" in app "${app.name}" is already used by ${existing}`,
+            );
+          }
+          if (infraDomains.has(domain)) {
+            throw new ValidationError(
+              `Domain "${domain}" in app "${app.name}" conflicts with infrastructure domain`,
+            );
+          }
+          allDomains.set(domain, `app "${app.name}"`);
+        }
+      }
     }
-    if (infraDomains.has(app.domain)) {
-      throw new ValidationError(
-        `Domain "${app.domain}" conflicts with infrastructure domain`,
-      );
-    }
-    allDomains.set(app.domain, `app "${app.name}"`);
   }
 
   // 3. Validate app-specific constraints
   for (const app of intent.apps) {
-    // Validate port range
-    if (app.port && (app.port < 1 || app.port > 65535)) {
-      throw new ValidationError(`App "${app.name}" port must be between 1 and 65535`);
-    }
+    // Validate ingress entries (port and domain validation done by valibot schema)
+    // No additional validation needed here
 
     // Validate health check constraints
     if (app.healthCheck) {

@@ -57,11 +57,15 @@ export type Volume =
   | { type: "bind"; source: string; target: string; readonly?: boolean }
   | { type: "named"; name: string; target: string; readonly?: boolean };
 
-/** Port binding configuration */
-export interface Port {
-  host: number;
-  container: number;
-  protocol?: "tcp" | "udp";
+/**
+ * Ingress configuration for external exposure via Caddy
+ */
+export interface Ingress {
+  /** Domain(s) to route to this service (must contain at least one) */
+  domains: string[];
+
+  /** Port the service listens on (internally, via Docker Compose network) */
+  port: number;
 }
 
 /**
@@ -80,11 +84,8 @@ export interface App {
    */
   image: string;
 
-  /** Primary domain for the application */
-  domain: string;
-
-  /** Port the application listens on (default: 3000) */
-  port?: number;
+  /** Ingress configuration for external exposure (routes via Caddy). Optional - service can be internal-only */
+  ingress?: Ingress[];
 
   /** Environment variables (non-sensitive) */
   env?: Record<string, string>;
@@ -100,9 +101,6 @@ export interface App {
 
   /** Docker volumes to mount (bind or named) */
   volumes?: Volume[];
-
-  /** Port bindings (host:container) */
-  ports?: Port[];
 
   /** Container startup command */
   command?: string[];
@@ -122,7 +120,7 @@ export interface HealthCheck {
   /** HTTP path for health check (e.g., "/health") */
   path?: string;
 
-  /** Port for health check (defaults to app.port) */
+  /** Port for health check (defaults to first ingress port) */
   port?: number;
 
   /** Health check interval in seconds (default: 10) */
