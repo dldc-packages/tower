@@ -32,7 +32,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   const handler = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const path = url.pathname;
-    
+
     console.log(`[${new Date().toISOString()}] ${req.method} ${path}`);
 
     try {
