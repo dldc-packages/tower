@@ -32,20 +32,29 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   const handler = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const path = url.pathname;
+    
+    console.log(`[${new Date().toISOString()}] ${req.method} ${path}`);
 
     try {
       // Route requests
       if (path === "/apply" && req.method === "POST") {
-        return await handleApply(req, dataDir);
+        console.log("→ Routing to handleApply");
+        return await handleApply(req);
       } else if (path === "/refresh" && req.method === "POST") {
+        console.log("→ Routing to handleRefresh");
         return await handleRefresh(req, dataDir);
       } else if (path === "/status" && req.method === "GET") {
-        return await handleStatus(req, dataDir);
+        console.log("→ Routing to handleStatus");
+        return handleStatus();
       } else {
+        console.log(`✗ Not found: ${req.method} ${path}`);
         return new Response("Not Found", { status: 404 });
       }
     } catch (error) {
-      console.error("Request error:", error);
+      console.error(`✗ Request error on ${req.method} ${path}:`, error);
+      if (error instanceof Error && error.stack) {
+        console.error("Stack trace:", error.stack);
+      }
 
       return new Response(
         `Internal Server Error: ${error instanceof Error ? error.message : String(error)}`,
@@ -61,16 +70,21 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
 /**
  * Handle POST /apply endpoint
  */
-async function handleApply(_req: Request, _dataDir: string): Promise<Response> {
+async function handleApply(req: Request): Promise<Response> {
+  console.log("[handleApply] Parsing request body...");
   // Parse intent from body
-  const body = await _req.text();
+  const body = await req.text();
+  console.log(`[handleApply] Body length: ${body.length} bytes`);
   let intent: Intent;
 
   try {
     const data = JSON.parse(body);
+    console.log("[handleApply] JSON parsed successfully");
+    console.log("[handleApply] Validating intent...");
     intent = validateIntent(data);
+    console.log(`[handleApply] Intent validated - ${intent.apps.length} apps`);
   } catch (error) {
-    console.error("Invalid intent:", error);
+    console.error("[handleApply] Invalid intent:", error);
     return new Response(
       `Invalid intent: ${error instanceof Error ? error.message : String(error)}`,
       { status: 400 },
@@ -118,18 +132,23 @@ async function handleApply(_req: Request, _dataDir: string): Promise<Response> {
  * Handle POST /refresh endpoint
  */
 async function handleRefresh(_req: Request, dataDir: string): Promise<Response> {
+  console.log(`[handleRefresh] Loading intent from ${dataDir}/intent.json...`);
   // Load current intent from disk
   const intentPath = `${dataDir}/intent.json`;
   if (!await fileExists(intentPath)) {
+    console.log(`[handleRefresh] Intent file not found: ${intentPath}`);
     return new Response("No intent.json found", { status: 404 });
   }
 
   let intent: Intent;
   try {
+    console.log("[handleRefresh] Reading intent file...");
     const data = await readJsonFile(intentPath);
+    console.log("[handleRefresh] Validating intent...");
     intent = validateIntent(data);
+    console.log(`[handleRefresh] Intent loaded - ${intent.apps.length} apps`);
   } catch (error) {
-    console.error("Invalid intent on disk:", error);
+    console.error("[handleRefresh] Invalid intent on disk:", error);
     return new Response(
       `Invalid intent.json: ${error instanceof Error ? error.message : String(error)}`,
       { status: 500 },
@@ -181,7 +200,8 @@ async function handleRefresh(_req: Request, dataDir: string): Promise<Response> 
  * Simple health check endpoint that returns 200 if Tower is running.
  * Does not read files to avoid permission issues with /var/infra.
  */
-function handleStatus(_req: Request, _dataDir: string): Response {
+function handleStatus(): Response {
+  console.log("[handleStatus] Returning health check");
   return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
