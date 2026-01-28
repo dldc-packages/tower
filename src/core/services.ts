@@ -8,12 +8,22 @@
 import type { App, Intent } from "../types.ts";
 import { logger } from "../utils/logger.ts";
 
+/** Port binding configuration (for host port exposure, infrastructure only) */
+export interface Port {
+  host: number;
+  container: number;
+  protocol?: "tcp" | "udp";
+}
+
 export interface ResolvedService extends App {
   /** Service kind */
   kind: "infra" | "app";
 
   /** Resolved immutable image reference (with digest when available) */
   imageDigest: string;
+
+  /** Port bindings to expose on host (infrastructure services only) */
+  ports?: Port[];
 }
 
 /**
@@ -76,9 +86,12 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     kind: "infra",
     name: "caddy",
     image: "caddy:2",
-    ingress: [{ domains: [intent.tower.domain], port: 80 }],
     imageDigest: "caddy:2",
     restart: "unless-stopped",
+    ports: [
+      { host: 80, container: 80 },
+      { host: 443, container: 443 },
+    ],
     volumes: [
       {
         type: "bind",
