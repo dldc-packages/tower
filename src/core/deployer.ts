@@ -80,6 +80,13 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       { type: "named", name: "caddy_config", target: "/config" },
     ],
     command: ["caddy", "run", "--config", "/etc/caddy/Caddy.json"],
+    healthCheck: {
+      path: "/",
+      port: 80,
+      interval: 10,
+      timeout: 5,
+      retries: 3,
+    },
   });
 
   services.push({
@@ -107,6 +114,13 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     env: {
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: "/var/lib/registry",
       REGISTRY_STORAGE_DELETE_ENABLED: "true",
+    },
+    healthCheck: {
+      path: "/v2/",
+      port: 5000,
+      interval: 10,
+      timeout: 5,
+      retries: 3,
     },
   });
 
@@ -139,6 +153,13 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       OTEL_DENO: "true",
       OTEL_DENO_CONSOLE: "capture",
     },
+    healthCheck: {
+      path: "/status",
+      port: 3100,
+      interval: 10,
+      timeout: 5,
+      retries: 3,
+    },
   });
 
   const otelImage = `grafana/otel-lgtm:${intent.otel.version}`;
@@ -163,6 +184,13 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     volumes: [
       { type: "named", name: "otel_lgtm_data", target: "/data" },
     ],
+    healthCheck: {
+      path: "/",
+      port: 3000,
+      interval: 10,
+      timeout: 5,
+      retries: 3,
+    },
   });
 
   // Resolve all app images in parallel
