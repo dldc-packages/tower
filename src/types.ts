@@ -46,10 +46,6 @@ export interface Intent {
     version: string;
     /** OTEL-LGTM domain (e.g., "otel.example.com") */
     domain: string;
-    /** OTEL username */
-    username: string;
-    /** OTEL password hash (bcrypt) */
-    passwordHash: string;
   };
 
   /** Application services to deploy */

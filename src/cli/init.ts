@@ -169,7 +169,6 @@ function isValidDomain(domain: string): boolean {
 async function hashCredentialsFromEnv(): Promise<{
   tower: string;
   registry: string;
-  otel: string;
 }> {
   logger.info("Hashing credentials from environment variables...");
 
@@ -192,14 +191,12 @@ async function hashCredentialsFromEnv(): Promise<{
   // Hash passwords with bcrypt
   const towerHash = await hash(towerPassword);
   const registryHash = await hash(registryPassword);
-  const otelHash = await hash(registryPassword); // OTEL uses same password as registry for now
 
   logger.info("  ✓ Credentials hashed");
 
   return {
     tower: towerHash,
     registry: registryHash,
-    otel: otelHash,
   };
 }
 
@@ -214,7 +211,7 @@ function generateInitialIntent(
     otelDomain: string;
   },
   dataDir: string,
-  credentials: { tower: string; registry: string; otel: string },
+  credentials: { tower: string; registry: string },
 ): Intent {
   const intent: Intent = {
     version: "1",
@@ -233,8 +230,6 @@ function generateInitialIntent(
     otel: {
       version: "latest",
       domain: config.otelDomain,
-      username: "admin",
-      passwordHash: credentials.otel,
     },
     apps: [], // Empty initially - apps added via deployments
   };
