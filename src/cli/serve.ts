@@ -182,40 +182,15 @@ async function handleRefresh(_req: Request, dataDir: string): Promise<Response> 
 
 /**
  * Handle GET /status endpoint
+ *
+ * Simple health check endpoint that returns 200 if Tower is running.
+ * Does not read files to avoid permission issues with /var/infra.
  */
-async function handleStatus(_req: Request, dataDir: string): Promise<Response> {
-  try {
-    // Load applied intent
-    const appliedPath = `${dataDir}/intent.json`;
-    let appliedIntent: Intent | undefined;
-
-    if (await fileExists(appliedPath)) {
-      appliedIntent = await readJsonFile<Intent>(appliedPath);
-    }
-
-    // Format as plain text
-    const lines: string[] = ["Tower Status", "=".repeat(60), ""];
-
-    if (appliedIntent) {
-      lines.push(`Intent:`);
-      lines.push(JSON.stringify(appliedIntent, null, 2));
-      lines.push("");
-    } else {
-      lines.push("No deployment applied yet");
-      lines.push("");
-    }
-
-    return new Response(lines.join("\n"), {
-      status: 200,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  } catch (error) {
-    logger.error("Status error:", error);
-    return new Response(
-      `Failed to get status: ${error instanceof Error ? error.message : String(error)}`,
-      { status: 500 },
-    );
-  }
+function handleStatus(_req: Request, _dataDir: string): Response {
+  return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 if (!import.meta.main) throw new Error("This module must be run as the main module");
