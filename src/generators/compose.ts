@@ -113,18 +113,12 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   // Add health check if defined
   const healthCheck = service.healthCheck;
   if (healthCheck) {
-    const port = healthCheck.port ?? 80;
-    const path = healthCheck.path ?? "";
     const interval = healthCheck.interval ?? 10;
     const timeout = healthCheck.timeout ?? 5;
     const retries = healthCheck.retries ?? 3;
 
-    const testCmd = healthCheck.path
-      ? ["CMD", "curl", "-f", `http://localhost:${port}${path}`]
-      : ["CMD", "true"];
-
     composeService.healthcheck = {
-      test: testCmd,
+      test: healthCheck.test,
       interval: `${interval}s`,
       timeout: `${timeout}s`,
       retries,

@@ -5,7 +5,7 @@
 /**
  * Default port for Tower HTTP server
  */
-export const DEFAULT_PORT = 3100;
+export const DEFAULT_PORT = 3000;
 
 /**
  * Default data directory for Tower configuration and state

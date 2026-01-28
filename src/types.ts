@@ -117,11 +117,8 @@ export interface App {
  * Container health check configuration
  */
 export interface HealthCheck {
-  /** HTTP path for health check (e.g., "/health") */
-  path?: string;
-
-  /** Port for health check (defaults to first ingress port) */
-  port?: number;
+  /** Docker Compose healthcheck test command (e.g., ["CMD-SHELL", "curl -f http://localhost:3000/health"]) */
+  test: string | string[];
 
   /** Health check interval in seconds (default: 10) */
   interval?: number;

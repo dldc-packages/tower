@@ -38,11 +38,11 @@ RUN useradd -m -u 1000 tower && \
 USER tower
 
 # Expose Tower HTTP API
-EXPOSE 3100
+EXPOSE 3000
 
 # Set environment defaults
 ENV TOWER_DATA_DIR=/var/infra \
-    TOWER_PORT=3100
+    TOWER_PORT=3000
 
 # Use denoland's existing ENTRYPOINT, only override CMD
 CMD ["task", "command:serve"]

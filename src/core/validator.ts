@@ -51,8 +51,10 @@ const emailSchema: v.GenericSchema<string> = v.pipe(
 // Health check schema
 const healthCheckSchema: v.GenericSchema<HealthCheck | undefined> = v.optional(
   v.object({
-    path: v.optional(v.string()),
-    port: v.optional(v.number()),
+    test: v.union([
+      v.string(),
+      v.array(v.string()),
+    ]),
     interval: v.optional(v.number()),
     timeout: v.optional(v.number()),
     retries: v.optional(v.number()),
@@ -287,13 +289,6 @@ function validateHealthCheckConstraints(appName: string, healthCheck: HealthChec
   if (retries < 0 || retries > 10) {
     throw new ValidationError(
       `App "${appName}" healthCheck retries must be between 0 and 10`,
-    );
-  }
-
-  // If path is provided, it must start with /
-  if (healthCheck.path && !healthCheck.path.startsWith("/")) {
-    throw new ValidationError(
-      `App "${appName}" healthCheck path must start with "/"`,
     );
   }
 }

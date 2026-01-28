@@ -107,8 +107,10 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     ],
     command: ["caddy", "run", "--config", "/etc/caddy/Caddy.json"],
     healthCheck: {
-      path: "/",
-      port: 80,
+      test: [
+        "CMD-SHELL",
+        "if command -v curl >/dev/null 2>&1; then curl -fsS http://localhost:80/ >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- http://localhost:80/ >/dev/null; else exit 0; fi",
+      ],
       interval: 10,
       timeout: 5,
       retries: 3,
@@ -139,8 +141,10 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       REGISTRY_STORAGE_DELETE_ENABLED: "true",
     },
     healthCheck: {
-      path: "/v2/",
-      port: 5000,
+      test: [
+        "CMD-SHELL",
+        "if command -v wget >/dev/null 2>&1; then wget -qO- http://localhost:5000/v2/ >/dev/null; else exit 0; fi",
+      ],
       interval: 10,
       timeout: 5,
       retries: 3,
@@ -171,8 +175,10 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       OTEL_DENO_CONSOLE: "capture",
     },
     healthCheck: {
-      path: "/status",
-      port: 3000,
+      test: [
+        "CMD-SHELL",
+        "if command -v curl >/dev/null 2>&1; then curl -fsS http://localhost:3000/status >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- http://localhost:3000/status >/dev/null; else exit 0; fi",
+      ],
       interval: 10,
       timeout: 5,
       retries: 3,
@@ -191,8 +197,10 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       { type: "named", name: "otel_lgtm_data", target: "/data" },
     ],
     healthCheck: {
-      path: "/",
-      port: 3000,
+      test: [
+        "CMD-SHELL",
+        "if command -v curl >/dev/null 2>&1; then curl -fsS http://localhost:3000/ >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- http://localhost:3000/ >/dev/null; else exit 0; fi",
+      ],
       interval: 10,
       timeout: 5,
       retries: 3,

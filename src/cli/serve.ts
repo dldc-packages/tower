@@ -238,12 +238,12 @@ USAGE:
   serve [options]
 
 OPTIONS:
-  -p, --port         Server port (default: 3100)
+  -p, --port         Server port (default: 3000)
   -d, --data-dir     Data directory (default: /var/infra)
   -h, --help         Show this help message
 
 EXAMPLE:
-  docker run -p 3100:3100 ghcr.io/dldc-packages/tower:latest
+  docker run -p 3000:3000 ghcr.io/dldc-packages/tower:latest
 `);
   Deno.exit(0);
 }
