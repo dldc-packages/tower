@@ -12,7 +12,7 @@ import { composeUpWithWait, validateCompose } from "../utils/exec.ts";
 import { writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 import { loadCaddyConfig } from "./caddyAdmin.ts";
-import { collectDomains, resolveServices } from "./deployer.ts";
+import { collectDomains, resolveServices } from "./services.ts";
 import { validateDns } from "./dns.ts";
 import { validateIntent } from "./validator.ts";
 

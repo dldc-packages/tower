@@ -5,9 +5,16 @@
  * Used by both the /apply endpoint (applier.ts) and initialization (init.ts).
  */
 
-import type { Intent } from "@dldc/tower/types";
+import type { App, Intent } from "../types.ts";
 import { logger } from "../utils/logger.ts";
-import type { ResolvedService } from "./types.ts";
+
+export interface ResolvedService extends App {
+  /** Service kind */
+  kind: "infra" | "app";
+
+  /** Resolved immutable image reference (with digest when available) */
+  imageDigest: string;
+}
 
 /**
  * Rewrite image registry host to the internal registry service when it points

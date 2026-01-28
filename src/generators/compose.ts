@@ -5,7 +5,7 @@
  */
 
 import { stringify as yamlStringify } from "@std/yaml/stringify";
-import type { ResolvedService } from "../core/types.ts";
+import { ResolvedService } from "../core/services.ts";
 import { logger } from "../utils/logger.ts";
 
 /**

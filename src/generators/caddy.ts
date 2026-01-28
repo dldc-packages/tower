@@ -4,7 +4,8 @@
  * Generate Caddy JSON config with routes for all services.
  */
 
-import type { AuthScope, BasicAuthUser, ResolvedService } from "../core/types.ts";
+import { ResolvedService } from "../core/services.ts";
+import { AuthScope, BasicAuthUser } from "../types.ts";
 import { logger } from "../utils/logger.ts";
 
 export function generateCaddyJson(

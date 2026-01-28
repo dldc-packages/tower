@@ -5,9 +5,17 @@
  */
 
 import * as v from "@valibot/valibot";
-import type { App, Auth, HealthCheck, Intent, Port, Volume } from "../types.ts";
+import type {
+  App,
+  Auth,
+  AuthScope,
+  BasicAuthUser,
+  HealthCheck,
+  Intent,
+  Port,
+  Volume,
+} from "../types.ts";
 import { ValidationError } from "../utils/errors.ts";
-import { AuthScope, BasicAuthUser } from "./types.ts";
 
 // Domain validation regex
 const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;

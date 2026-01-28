@@ -9,8 +9,8 @@ import { hash } from "@felix/bcrypt";
 import { parseArgs } from "@std/cli/parse-args";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
-import { collectDomains, resolveServices } from "../core/deployer.ts";
 import { validateDns } from "../core/dns.ts";
+import { collectDomains, resolveServices } from "../core/services.ts";
 
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
