@@ -161,9 +161,6 @@ export async function resolveSemver(intent: Intent): Promise<Map<string, string>
  * Resolve a single image reference to an immutable digest
  */
 export async function resolveImageToDigest(
-  
- ,
-
   imageRef: string,
   intent: Intent,
 ): Promise<string | null> {
