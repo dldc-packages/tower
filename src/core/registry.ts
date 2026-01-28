@@ -6,7 +6,6 @@
 
 import { RegistryError } from "../utils/errors.ts";
 import { basicAuth, getJson } from "../utils/http.ts";
-import { logger } from "../utils/logger.ts";
 
 export interface RegistryClient {
   baseUrl: string;
@@ -41,7 +40,7 @@ export async function listTags(
     const response = await getJson<{ tags: string[] }>(url, headers);
     return response.tags ?? [];
   } catch (error) {
-    logger.error(`Failed to list tags for ${repository}:`, error);
+    console.error(`Failed to list tags for ${repository}:`, error);
     throw new RegistryError(`Failed to list tags: ${repository}`, { cause: error });
   }
 }
@@ -77,7 +76,7 @@ export async function getDigest(
 
     return digest;
   } catch (error) {
-    logger.error(`Failed to get digest for ${repository}:${tag}:`, error);
+    console.error(`Failed to get digest for ${repository}:${tag}:`, error);
     throw new RegistryError(`Failed to get digest: ${repository}:${tag}`, { cause: error });
   }
 }

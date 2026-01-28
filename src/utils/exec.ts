@@ -4,8 +4,6 @@
  * Run docker, docker compose, and caddy commands with proper error handling.
  */
 
-import { logger } from "./logger.ts";
-
 export interface ExecResult {
   success: boolean;
   stdout: string;
@@ -17,7 +15,7 @@ export interface ExecResult {
  * Execute a shell command and return result
  */
 export async function exec(cmd: string[]): Promise<ExecResult> {
-  logger.debug(`Executing: ${cmd.join(" ")}`);
+  console.log(`Executing: ${cmd.join(" ")}`);
 
   const command = new Deno.Command(cmd[0], {
     args: cmd.slice(1),
@@ -33,8 +31,8 @@ export async function exec(cmd: string[]): Promise<ExecResult> {
   const stderrText = decoder.decode(stderr);
 
   if (code !== 0) {
-    logger.debug(`Command failed with code ${code}`);
-    logger.debug(`stderr: ${stderrText}`);
+    console.log(`Command failed with code ${code}`);
+    console.log(`stderr: ${stderrText}`);
   }
 
   return {
@@ -151,5 +149,5 @@ export function caddyValidate(caddyfile: string): void {
   // Note: Validation happens in container
   // We could copy file to temp location and validate, or use docker exec
   // TODO: Implement proper validation
-  logger.debug(`Validating Caddyfile: ${caddyfile}`);
+  console.log(`Validating Caddyfile: ${caddyfile}`);
 }

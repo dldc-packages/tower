@@ -5,7 +5,6 @@
  */
 
 import { DnsError } from "../utils/errors.ts";
-import { logger } from "../utils/logger.ts";
 
 /**
  * Validate DNS propagation for domains
@@ -15,7 +14,7 @@ export async function validateDns(domains: string[], timeoutSeconds: number = 30
     return;
   }
 
-  logger.info(`Validating DNS for ${domains.length} domains...`);
+  console.log(`Validating DNS for ${domains.length} domains...`);
 
   const results = await Promise.all(
     domains.map((domain) => validateSingleDomain(domain, timeoutSeconds)),
@@ -27,7 +26,7 @@ export async function validateDns(domains: string[], timeoutSeconds: number = 30
     throw new DnsError(`DNS validation failed for: ${domainList}`);
   }
 
-  logger.info("✓ DNS validation passed");
+  console.log("✓ DNS validation passed");
 }
 
 /**
@@ -37,7 +36,7 @@ async function validateSingleDomain(
   domain: string,
   timeoutSeconds: number,
 ): Promise<{ domain: string; success: boolean }> {
-  logger.debug(`Checking DNS for ${domain}...`);
+  console.log(`Checking DNS for ${domain}...`);
 
   try {
     // Simple DNS resolution check using Deno.resolveDns
@@ -48,7 +47,7 @@ async function validateSingleDomain(
         const addresses = await Deno.resolveDns(domain, "A");
 
         if (addresses.length > 0) {
-          logger.debug(`${domain} resolves to: ${addresses.join(", ")}`);
+          console.log(`${domain} resolves to: ${addresses.join(", ")}`);
           return { domain, success: true };
         }
       } catch {
@@ -59,10 +58,10 @@ async function validateSingleDomain(
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
-    logger.warn(`DNS timeout for ${domain}`);
+    console.log(`DNS timeout for ${domain}`);
     return { domain, success: false };
   } catch (error) {
-    logger.error(`DNS check failed for ${domain}:`, error);
+    console.error(`DNS check failed for ${domain}:`, error);
     return { domain, success: false };
   }
 }

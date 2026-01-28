@@ -6,7 +6,6 @@
  */
 
 import type { App, Intent } from "../types.ts";
-import { logger } from "../utils/logger.ts";
 
 /** Port binding configuration (for host port exposure, infrastructure only) */
 export interface Port {
@@ -214,7 +213,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       const resolvedImage = await resolveImageToDigest(normalizedImageRef, intent);
 
       if (resolvedImage) {
-        logger.debug(`Resolved ${app.name}: ${app.image} → ${resolvedImage}`);
+        console.log(`Resolved ${app.name}: ${app.image} → ${resolvedImage}`);
       }
 
       return {
@@ -256,7 +255,7 @@ export async function resolveImageToDigest(
 
     // If no tag or tag doesn't look like semver, return as-is
     if (!parsed.tag || !isSemverLike(parsed.tag)) {
-      logger.debug(`Image ${imageRef} doesn't use semver, skipping resolution`);
+      console.log(`Image ${imageRef} doesn't use semver, skipping resolution`);
       return null;
     }
 
@@ -276,7 +275,7 @@ export async function resolveImageToDigest(
     const matchedTag = matchSemverRange(parsed.tag, tags);
 
     if (!matchedTag) {
-      logger.warn(`No matching tag found for ${imageRef}, using original`);
+      console.log(`No matching tag found for ${imageRef}, using original`);
       return null;
     }
 
@@ -286,7 +285,7 @@ export async function resolveImageToDigest(
     // Return full image reference with digest
     return `${parsed.registry}/${parsed.repository}@${digest}`;
   } catch (error) {
-    logger.warn(`Failed to resolve ${imageRef}:`, error);
+    console.log(`Failed to resolve ${imageRef}:`, error);
     return null;
   }
 }

@@ -3,7 +3,6 @@
  */
 
 import { request } from "../utils/http.ts";
-import { logger } from "../utils/logger.ts";
 
 const DEFAULT_ADMIN_ORIGIN = "http://localhost:2019";
 
@@ -18,7 +17,7 @@ export async function loadCaddyConfig(
   const origin = adminOrigin.replace(/\/$/, "");
   const url = `${origin}/load`;
 
-  logger.info(`Pushing Caddy config via admin API: ${url}`);
+  console.log(`Pushing Caddy config via admin API: ${url}`);
 
   const response = await request(url, {
     method: "POST",
@@ -33,5 +32,5 @@ export async function loadCaddyConfig(
     throw new Error(`Caddy load failed (${response.status})`, { cause: error });
   }
 
-  logger.info("✓ Caddy config accepted by admin API");
+  console.log("✓ Caddy config accepted by admin API");
 }

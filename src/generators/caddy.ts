@@ -5,13 +5,12 @@
  */
 
 import { ResolvedService } from "../core/services.ts";
-import { logger } from "../utils/logger.ts";
 
 export function generateCaddyJson(
   services: ResolvedService[],
   adminEmail: string,
 ): string {
-  logger.info("Generating Caddy JSON config...");
+  console.log("Generating Caddy JSON config...");
 
   const domains = new Set<string>();
   const routes: Array<Record<string, unknown>> = [];

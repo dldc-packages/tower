@@ -4,19 +4,17 @@
  * Match semver version ranges to available tags.
  */
 
-import { logger } from "../utils/logger.ts";
-
 /**
  * Match semver range against available tags and return best match
  */
 export function matchSemverRange(range: string, tags: string[]): string | null {
-  logger.debug(`Matching semver range: ${range} against ${tags.length} tags`);
+  console.log(`Matching semver range: ${range} against ${tags.length} tags`);
 
   // Filter tags that look like semver
   const semverTags = tags.filter(isSemverTag);
 
   if (semverTags.length === 0) {
-    logger.warn("No semver tags found");
+    console.log("No semver tags found");
     return null;
   }
 
@@ -27,13 +25,13 @@ export function matchSemverRange(range: string, tags: string[]): string | null {
   const matches = semverTags.filter((tag) => matcher(tag));
 
   if (matches.length === 0) {
-    logger.warn(`No tags match range: ${range}`);
+    console.log(`No tags match range: ${range}`);
     return null;
   }
 
   // Sort by semver and return latest
   const sorted = matches.sort(compareSemver).reverse();
-  logger.debug(`Best match: ${sorted[0]}`);
+  console.log(`Best match: ${sorted[0]}`);
 
   return sorted[0];
 }

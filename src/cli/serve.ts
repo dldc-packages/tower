@@ -11,7 +11,6 @@ import { apply } from "../core/applier.ts";
 import { validateIntent } from "../core/validator.ts";
 import type { Intent } from "../types.ts";
 import { fileExists, readJsonFile } from "../utils/fs.ts";
-import { createConsoleSink, createLogger, createStreamSink, logger } from "../utils/logger.ts";
 
 export interface ServeOptions {
   port?: number;
@@ -25,10 +24,10 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   const port = options.port ?? parseInt(Deno.env.get("TOWER_PORT") ?? String(DEFAULT_PORT), 10);
   const dataDir = options.dataDir ?? Deno.env.get("TOWER_DATA_DIR") ?? DEFAULT_DATA_DIR;
 
-  logger.info(`🗼 Tower HTTP Server`);
-  logger.info(`Port: ${port}`);
-  logger.info(`Data directory: ${dataDir}`);
-  logger.info("");
+  console.log(`🗼 Tower HTTP Server`);
+  console.log(`Port: ${port}`);
+  console.log(`Data directory: ${dataDir}`);
+  console.log("");
 
   const handler = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -46,7 +45,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
         return new Response("Not Found", { status: 404 });
       }
     } catch (error) {
-      logger.error("Request error:", error);
+      console.error("Request error:", error);
 
       return new Response(
         `Internal Server Error: ${error instanceof Error ? error.message : String(error)}`,
@@ -55,7 +54,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     }
   };
 
-  logger.info(`Listening on http://localhost:${port}`);
+  console.log(`Listening on http://localhost:${port}`);
   await Deno.serve({ port }, handler).finished;
 }
 
@@ -71,7 +70,7 @@ async function handleApply(_req: Request, _dataDir: string): Promise<Response> {
     const data = JSON.parse(body);
     intent = validateIntent(data);
   } catch (error) {
-    logger.error("Invalid intent:", error);
+    console.error("Invalid intent:", error);
     return new Response(
       `Invalid intent: ${error instanceof Error ? error.message : String(error)}`,
       { status: 400 },
@@ -82,24 +81,22 @@ async function handleApply(_req: Request, _dataDir: string): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const streamSink = createStreamSink(
-        (line) => controller.enqueue(encoder.encode(line + "\n")),
-      );
-      const streamLogger = createLogger({
-        sinks: [createConsoleSink(), streamSink],
-      });
+      const writeLog = (line: string) => {
+        console.log(line);
+        controller.enqueue(encoder.encode(line + "\n"));
+      };
 
       try {
-        streamLogger.info("🚀 Starting deployment...");
-        streamLogger.info("");
+        writeLog("🚀 Starting deployment...");
+        writeLog("");
 
         await apply(intent);
 
-        streamLogger.info("");
-        streamLogger.info("✓ Deployment successful");
+        writeLog("");
+        writeLog("✓ Deployment successful");
       } catch (error) {
-        streamLogger.info("");
-        streamLogger.error(
+        writeLog("");
+        writeLog(
           `❌ Deployment failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
@@ -132,7 +129,7 @@ async function handleRefresh(_req: Request, dataDir: string): Promise<Response> 
     const data = await readJsonFile(intentPath);
     intent = validateIntent(data);
   } catch (error) {
-    logger.error("Invalid intent on disk:", error);
+    console.error("Invalid intent on disk:", error);
     return new Response(
       `Invalid intent.json: ${error instanceof Error ? error.message : String(error)}`,
       { status: 500 },
@@ -143,26 +140,24 @@ async function handleRefresh(_req: Request, dataDir: string): Promise<Response> 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const streamSink = createStreamSink(
-        (line) => controller.enqueue(encoder.encode(line + "\n")),
-      );
-      const streamLogger = createLogger({
-        sinks: [createConsoleSink(), streamSink],
-      });
+      const writeLog = (line: string) => {
+        console.log(line);
+        controller.enqueue(encoder.encode(line + "\n"));
+      };
 
       try {
-        streamLogger.info("🔄 Refreshing deployment...");
-        streamLogger.info("Re-resolving semver ranges...");
-        streamLogger.info("");
+        writeLog("🔄 Refreshing deployment...");
+        writeLog("Re-resolving semver ranges...");
+        writeLog("");
 
         // Apply will re-resolve semver and only update if digests changed
         await apply(intent);
 
-        streamLogger.info("");
-        streamLogger.info("✓ Refresh complete");
+        writeLog("");
+        writeLog("✓ Refresh complete");
       } catch (error) {
-        streamLogger.info("");
-        streamLogger.error(
+        writeLog("");
+        writeLog(
           `❌ Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
@@ -228,6 +223,6 @@ try {
   const dataDir = args["data-dir"] as string | undefined;
   await runServe({ port, dataDir });
 } catch (error) {
-  logger.error("Serve failed:", error);
+  console.error("Serve failed:", error);
   Deno.exit(1);
 }

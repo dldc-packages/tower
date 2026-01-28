@@ -6,13 +6,12 @@
 
 import { stringify as yamlStringify } from "@std/yaml/stringify";
 import { ResolvedService } from "../core/services.ts";
-import { logger } from "../utils/logger.ts";
 
 /**
  * Generate docker-compose.yml content from resolved services
  */
 export function generateCompose(services: ResolvedService[]): string {
-  logger.info("Generating docker-compose.yml...");
+  console.log("Generating docker-compose.yml...");
 
   // Collect all named volumes from services
   const namedVolumes: Record<string, unknown> = {};

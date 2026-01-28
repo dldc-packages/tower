@@ -747,9 +747,8 @@ propagation │ └── caddyAdmin.ts # Caddy admin API client (POST /load end
 compose.ts # Generate docker-compose.yml (@std/yaml stringify) │ └── caddy.ts # Generate Caddy JSON
 config (v2.x JSON adapter) ├── otel/ │ └── mod.ts # Re-export OpenTelemetry API (@opentelemetry/api)
 └── utils/ ├── errors.ts # Custom error types (TowerError, ValidationError, etc.) ├── exec.ts #
-Execute commands (docker, compose, etc.) ├── logger.ts # Logger with secret redaction and pluggable
-sinks ├── fs.ts # File system helpers (read/write JSON, ensure dir) └── http.ts # HTTP client
-(request, getJson, postJson, basicAuth)
+Execute commands (docker, compose, etc.) ├── fs.ts # File system helpers (read/write JSON, ensure
+dir) └── http.ts # HTTP client (request, getJson, postJson, basicAuth)
 
 ````
 **Key Dependencies:**
@@ -998,7 +997,6 @@ This is the current state of Tower v0.1.23:
    - `compose.ts`: Docker Compose YAML generation (@std/yaml)
    - `caddy.ts`: Caddy JSON config (v2.x with ACME, routes, auth policies)
 5. **Utilities:**
-   - `logger.ts`: Pluggable logger with secret redaction
    - `exec.ts`: Command execution (docker, compose)
    - `fs.ts`: File system operations
    - `http.ts`: HTTP client with Basic Auth

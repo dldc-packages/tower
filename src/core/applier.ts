@@ -10,10 +10,9 @@ import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
 import { composeUpWithWait, validateCompose } from "../utils/exec.ts";
 import { writeTextFile } from "../utils/fs.ts";
-import { logger } from "../utils/logger.ts";
 import { loadCaddyConfig } from "./caddyAdmin.ts";
-import { collectDomains, resolveServices } from "./services.ts";
 import { validateDns } from "./dns.ts";
+import { collectDomains, resolveServices } from "./services.ts";
 import { validateIntent } from "./validator.ts";
 
 /** * Apply deployment intent
@@ -31,17 +30,17 @@ import { validateIntent } from "./validator.ts";
  * 10. Save intent.json
  */
 export async function apply(intent: Intent): Promise<void> {
-  logger.info("🚀 Starting deployment");
+  console.log("🚀 Starting deployment");
 
   // Step 1: Validate intent
   const validatedIntent = validateIntent(intent);
-  logger.info("✓ Intent validated");
+  console.log("✓ Intent validated");
 
   const dataDir = validatedIntent.dataDir ?? DEFAULT_DATA_DIR;
 
   // Step 2: Resolve services (includes image resolution)
   const services = await resolveServices(validatedIntent);
-  logger.info(`✓ Resolved ${services.length} service(s)`);
+  console.log(`✓ Resolved ${services.length} service(s)`);
 
   // Step 3: Validate DNS for all domains (naive parallel check)
   const domains = collectDomains(services);
@@ -61,11 +60,11 @@ export async function apply(intent: Intent): Promise<void> {
 
   try {
     await validateCompose(tempComposePath);
-    logger.info("✓ docker-compose.yml validated");
+    console.log("✓ docker-compose.yml validated");
 
     // Validation passed, write final file
     await writeTextFile(composePath, composeYaml);
-    logger.info(`✓ Wrote docker-compose.yml to ${dataDir}`);
+    console.log(`✓ Wrote docker-compose.yml to ${dataDir}`);
 
     // Clean up temp file
     await Deno.remove(tempComposePath).catch(() => {});
@@ -75,20 +74,20 @@ export async function apply(intent: Intent): Promise<void> {
   }
 
   await writeTextFile(caddyPath, caddyJson);
-  logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
+  console.log(`✓ Wrote Caddy.json to ${dataDir}`);
 
   // Step 6: Apply via docker compose up (with health check waiting)
   await composeUpWithWait(composePath);
-  logger.info("✓ Applied docker-compose.yml and waited for health checks");
+  console.log("✓ Applied docker-compose.yml and waited for health checks");
 
   // Step 7: Reload Caddy (validate and load config via admin API)
   await loadCaddyConfig(caddyJson);
-  logger.info("✓ Reloaded Caddy via admin API");
+  console.log("✓ Reloaded Caddy via admin API");
 
   // Step 8: Save applied intent with resolved images
   await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(intent, null, 2));
-  logger.info("✓ Saved applied intent");
+  console.log("✓ Saved applied intent");
 
   const appCount = intent.apps.length;
-  logger.info(`✅ Deployment complete: ${appCount} app(s) running`);
+  console.log(`✅ Deployment complete: ${appCount} app(s) running`);
 }

@@ -4,8 +4,6 @@
  * Simple HTTP client for registry API and other services.
  */
 
-import { logger } from "./logger.ts";
-
 export interface HttpOptions {
   method?: string;
   headers?: Record<string, string>;
@@ -24,7 +22,7 @@ export async function request(url: string, options: HttpOptions = {}): Promise<R
     timeout = 30000,
   } = options;
 
-  logger.debug(`HTTP ${method} ${url}`);
+  console.log(`HTTP ${method} ${url}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -37,10 +35,10 @@ export async function request(url: string, options: HttpOptions = {}): Promise<R
       signal: controller.signal,
     });
 
-    logger.debug(`HTTP ${method} ${url} -> ${response.status}`);
+    console.log(`HTTP ${method} ${url} -> ${response.status}`);
     return response;
   } catch (error) {
-    logger.error(`HTTP ${method} ${url} failed:`, error);
+    console.error(`HTTP ${method} ${url} failed:`, error);
     throw error;
   } finally {
     clearTimeout(timeoutId);

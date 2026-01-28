@@ -4,8 +4,6 @@
  * Helpers for reading/writing Tower configuration files.
  */
 
-import { logger } from "./logger.ts";
-
 /**
  * Ensure directory exists, create if missing
  */
@@ -26,7 +24,7 @@ export async function readTextFile(path: string): Promise<string> {
   try {
     return await Deno.readTextFile(path);
   } catch (error) {
-    logger.error(`Failed to read file: ${path}`, error);
+    console.error(`Failed to read file: ${path}`, error);
     throw error;
   }
 }
@@ -37,9 +35,9 @@ export async function readTextFile(path: string): Promise<string> {
 export async function writeTextFile(path: string, content: string): Promise<void> {
   try {
     await Deno.writeTextFile(path, content);
-    logger.debug(`Wrote file: ${path}`);
+    console.log(`Wrote file: ${path}`);
   } catch (error) {
-    logger.error(`Failed to write file: ${path}`, error);
+    console.error(`Failed to write file: ${path}`, error);
     throw error;
   }
 }
