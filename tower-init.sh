@@ -121,14 +121,10 @@ echo "Docker image: $TOWER_IMAGE"
 docker image inspect "$TOWER_IMAGE" --format='  Version: {{.Config.Labels.version}}{{- if eq .Config.Labels.version ""}} (not set){{end}}'
 echo ""
 
-# Create bootstrap network
-docker network create tower_bootstrap 2>/dev/null || true
-
 # Run docker with all the environment variables
 # Run as root since init needs to write to deno cache and docker socket
 docker run --rm -it \
     --user root \
-    --network tower_bootstrap \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /var/infra:/var/infra \
     -e "ADMIN_EMAIL=$ADMIN_EMAIL" \

@@ -1,23 +1,21 @@
 /**
  * Tower initialization command
  *
- * Performs one-time bootstrap of Tower infrastructure.
+ * Performs one-time setup of Tower infrastructure by generating production
+ * configs directly and starting the full stack.
  */
 
 import { hash } from "@felix/bcrypt";
 import { parseArgs } from "@std/cli/parse-args";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
+import { validateDns } from "../core/dns.ts";
 import { waitForHealthy } from "../core/health.ts";
-import { generateBootstrapCompose } from "../generators/compose.ts";
-import type { Intent } from "../types.ts";
-import {
-  checkDocker,
-  checkDockerCompose,
-  composeConfig,
-  composeUp,
-  execOrThrow,
-} from "../utils/exec.ts";
+import type { ResolvedService } from "../core/types.ts";
+import { generateCaddyJson } from "../generators/caddy.ts";
+import { generateCompose } from "../generators/compose.ts";
+import type { Credentials, Intent } from "../types.ts";
+import { checkDocker, checkDockerCompose, composeUp, validateCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -33,8 +31,9 @@ export interface InitOptions {
  * 2. Load configuration from environment variables
  * 3. Hash credentials from environment variables
  * 4. Generate initial intent with credentials embedded
- * 5. Bootstrap the stack (apply initial config with credentials)
- * 6. Print summary
+ * 5. Generate production configs and start stack directly
+ * 6. Wait for services to be healthy
+ * 7. Print summary
  */
 export async function runInit(options: InitOptions = {}): Promise<void> {
   const dataDir = options.dataDir ?? DEFAULT_DATA_DIR;
@@ -58,21 +57,16 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   const intent = generateInitialIntent(config, dataDir, hashedCredentials);
   logger.info("✓ Initial intent generated");
 
-  // Step 5: Bootstrap tower-only compose and call /apply inside the container
+  // Step 5: Generate production configs and start stack
   logger.info("");
-  await bootstrapAndApply(intent, dataDir);
+  await applyInitialStack(intent, dataDir, hashedCredentials);
 
   // Step 6: Wait for services to be healthy
   logger.info("");
   logger.info("Waiting for services to start...");
   await waitForHealthy(["tower", "caddy", "registry", "otel-lgtm"], 120);
 
-  // Step 7: Clean up bootstrap network
-  logger.info("");
-  logger.info("Cleaning up bootstrap resources...");
-  await cleanupBootstrap(dataDir);
-
-  // Step 8: Print final summary
+  // Step 7: Print final summary
   logger.info("");
   printSummary(intent);
 }
@@ -312,83 +306,293 @@ function generateInitialIntent(
 }
 
 /**
- * Apply the initial Tower stack
+ * Apply the initial Tower stack by generating production configs directly
  */
-async function bootstrapAndApply(intent: Intent, dataDir: string): Promise<void> {
-  logger.info("Bootstrapping tower-only compose...");
+async function applyInitialStack(
+  intent: Intent,
+  dataDir: string,
+  hashedCredentials: {
+    tower: { username: string; passwordHash: string };
+    registry: { username: string; passwordHash: string };
+    otel: { username: string; passwordHash: string };
+  },
+): Promise<void> {
+  logger.info("Generating production configuration...");
 
-  const composePath = `${dataDir}/docker-compose.bootstrap.yml`;
-  const composeContent = generateBootstrapCompose(dataDir, denoJson.version);
-  await writeTextFile(composePath, composeContent);
+  // Build credentials object
+  const credentials: Credentials = {
+    tower: {
+      username: hashedCredentials.tower.username,
+      password_hash: hashedCredentials.tower.passwordHash,
+    },
+    registry: {
+      username: hashedCredentials.registry.username,
+      password_hash: hashedCredentials.registry.passwordHash,
+    },
+  };
 
-  await composeConfig(composePath);
+  // Step 1: Resolve services (same as /apply does)
+  const services = resolveServices(intent, credentials);
+  logger.info(`✓ Resolved ${services.length} service(s)`);
+
+  // Step 2: Resolve semver ranges to digests
+  const resolvedImages = await resolveSemver(intent);
+  logger.info(`✓ Resolved ${resolvedImages.size} image(s) to digests`);
+
+  // Step 3: Validate DNS for all domains
+  const domains = collectDomains(services);
+  await validateDns(domains);
+
+  // Step 4: Generate docker-compose.yml and Caddy.json
+  const composeYaml = generateCompose(intent, resolvedImages);
+  const composePath = `${dataDir}/docker-compose.yml`;
+
+  const caddyJson = generateCaddyJson(services, intent.adminEmail);
+  const caddyPath = `${dataDir}/Caddy.json`;
+
+  // Step 5: Validate generated compose config
+  const tempComposePath = `${dataDir}/.docker-compose.yml.tmp`;
+  await writeTextFile(tempComposePath, composeYaml);
+
+  try {
+    await validateCompose(tempComposePath);
+    logger.info("✓ docker-compose.yml validated");
+
+    // Validation passed, write final files
+    await writeTextFile(composePath, composeYaml);
+    logger.info(`✓ Wrote docker-compose.yml to ${dataDir}`);
+
+    // Clean up temp file
+    await Deno.remove(tempComposePath).catch(() => {});
+  } catch (error) {
+    await Deno.remove(tempComposePath).catch(() => {});
+    throw new Error(`docker-compose.yml validation failed`, { cause: error });
+  }
+
+  await writeTextFile(caddyPath, caddyJson);
+  logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
+
+  // Step 6: Save credentials.json for Tower to read
+  const credentialsPath = `${dataDir}/credentials.json`;
+  await writeTextFile(credentialsPath, JSON.stringify(credentials, null, 2));
+  logger.info(`✓ Wrote credentials.json to ${dataDir}`);
+
+  // Step 7: Save initial intent.json
+  const appliedIntent = {
+    ...intent,
+    appliedAt: new Date().toISOString(),
+    resolvedImages: Object.fromEntries(resolvedImages),
+  };
+  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
+  logger.info(`✓ Wrote intent.json to ${dataDir}`);
+
+  // Step 8: Start the production stack
+  logger.info("");
+  logger.info("Starting production stack...");
   await composeUp(composePath);
-
-  await waitForHealthy(["tower"], 60);
-
-  logger.info("Calling tower /apply via docker network (no host port exposure)...");
-  await callTowerApply(intent, dataDir);
-}
-
-async function callTowerApply(intent: Intent, _dataDir: string): Promise<void> {
-  const intentJson = JSON.stringify(intent);
-
-  // Call tower /apply endpoint via HTTP on the docker network
-  const response = await fetch("http://tower:3100/apply", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: intentJson,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Apply failed: ${response.status} ${errorText}`);
-  }
-
-  // Read and log the streaming response
-  if (response.body) {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        logger.info(text);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-
-  logger.info("✓ Apply completed");
+  logger.info("✓ Production stack started");
 }
 
 /**
- * Clean up bootstrap resources
+ * Collect all unique domains from services
  */
-async function cleanupBootstrap(dataDir: string): Promise<void> {
-  try {
-    // Remove bootstrap compose file
-    const bootstrapCompose = `${dataDir}/docker-compose.bootstrap.yml`;
-    await Deno.remove(bootstrapCompose).catch(() => {});
-
-    // Remove temporary intent file
-    const tempIntent = `${dataDir}/.intent.bootstrap.json`;
-    await Deno.remove(tempIntent).catch(() => {});
-
-    // Stop and remove bootstrap container
-    await execOrThrow(["docker", "stop", "tower"]).catch(() => {});
-    await execOrThrow(["docker", "rm", "tower"]).catch(() => {});
-
-    // Remove bootstrap network
-    await execOrThrow(["docker", "network", "rm", "tower_bootstrap"]).catch(() => {});
-
-    logger.info("✓ Bootstrap cleanup complete");
-  } catch (error) {
-    logger.warn("Failed to clean up some bootstrap resources:", error);
+function collectDomains(services: ResolvedService[]): string[] {
+  const domains = new Set<string>();
+  for (const svc of services) {
+    if (svc.domain) domains.add(svc.domain);
   }
+  return Array.from(domains);
+}
+
+/**
+ * Resolve services from intent (infrastructure + apps)
+ */
+function resolveServices(intent: Intent, credentials: Credentials): ResolvedService[] {
+  const services: ResolvedService[] = [];
+
+  // Add infrastructure services
+  services.push({
+    name: "caddy",
+    type: "infra",
+    domain: intent.tower.domain,
+    port: 80,
+    version: "latest",
+    image: "caddy:latest",
+  });
+
+  services.push({
+    name: "registry",
+    type: "infra",
+    domain: intent.registry.domain,
+    port: 5000,
+    version: "latest",
+    image: "registry:2",
+    upstreamName: "registry",
+    upstreamPort: 5000,
+    authPolicy: "basic_write_only",
+    authBasicUsers: [
+      {
+        username: credentials.registry.username,
+        passwordHash: credentials.registry.password_hash,
+      },
+    ],
+  });
+
+  services.push({
+    name: "tower",
+    type: "infra",
+    domain: intent.tower.domain,
+    port: 3000,
+    version: intent.tower.version,
+    image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
+    upstreamName: "tower",
+    upstreamPort: 3100,
+    authPolicy: "basic_all",
+    authBasicUsers: [
+      {
+        username: credentials.tower.username,
+        passwordHash: credentials.tower.password_hash,
+      },
+    ],
+    env: {
+      OTEL_DENO: "true",
+      OTEL_DENO_CONSOLE: "capture",
+    },
+  });
+
+  services.push({
+    name: "otel",
+    type: "infra",
+    domain: intent.otel.domain,
+    port: 3000,
+    version: intent.otel.version,
+    image: `grafana/otel-lgtm:${intent.otel.version}`,
+    upstreamName: "otel-lgtm",
+    upstreamPort: 3000,
+    authPolicy: "none",
+  });
+
+  // Add user-defined apps
+  for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
+    services.push({
+      name: app.name,
+      type: "app",
+      domain: app.domain,
+      port: app.port ?? 3000,
+      version: app.image,
+      image,
+      upstreamName: app.name,
+      upstreamPort: app.port ?? 3000,
+      authPolicy: "none",
+      env: app.env,
+      secrets: app.secrets,
+      healthCheck: app.healthCheck,
+    });
+  }
+
+  return services;
+}
+
+/**
+ * Normalize registry:// prefix to registry domain
+ */
+function normalizeLocalRegistry(image: string, intent: Intent): string {
+  const localPrefix = "registry://";
+  const withDomain = image.startsWith(localPrefix)
+    ? `${intent.registry.domain}/${image.slice(localPrefix.length)}`
+    : image;
+  return rewriteRegistryToInternal(withDomain, intent);
+}
+
+/**
+ * Rewrite registry domain to internal service name
+ */
+function rewriteRegistryToInternal(image: string, intent: Intent): string {
+  const prefix = `${intent.registry.domain}/`;
+  if (image.startsWith(prefix)) {
+    return image.replace(prefix, "registry:5000/");
+  }
+  return image;
+}
+
+/**
+ * Resolve semver ranges in intent to immutable digests
+ */
+async function resolveSemver(intent: Intent): Promise<Map<string, string>> {
+  const resolvedImages = new Map<string, string>();
+
+  for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
+    const resolved = await resolveImageToDigest(image, intent);
+    if (resolved) {
+      resolvedImages.set(app.name, resolved);
+      logger.debug(`Resolved ${app.name}: ${app.image} → ${resolved}`);
+    }
+  }
+
+  return resolvedImages;
+}
+
+/**
+ * Resolve a single image reference to an immutable digest
+ */
+async function resolveImageToDigest(imageRef: string, intent: Intent): Promise<string | null> {
+  const { parseImageRef } = await import("../core/registry.ts");
+  const { matchSemverRange } = await import("../core/semver.ts");
+  const { createRegistryClient, listTags, getDigest } = await import("../core/registry.ts");
+
+  try {
+    const parsed = parseImageRef(imageRef);
+
+    // If already has a digest, return as-is
+    if (parsed.digest) {
+      return imageRef;
+    }
+
+    // If no tag or tag doesn't look like semver, return as-is
+    if (!parsed.tag || !isSemverLike(parsed.tag)) {
+      logger.debug(`Image ${imageRef} doesn't use semver, skipping resolution`);
+      return null;
+    }
+
+    // Determine if this is the internal registry
+    const isInternalRegistry = parsed.registry === "registry" ||
+      parsed.registry === intent.registry.domain;
+
+    // Create registry client
+    const baseUrl = isInternalRegistry ? "http://registry:5000" : `https://${parsed.registry}`;
+
+    const client = createRegistryClient(baseUrl);
+
+    // List available tags
+    const tags = await listTags(client, parsed.repository);
+
+    // Match semver range to available tags
+    const matchedTag = matchSemverRange(parsed.tag, tags);
+
+    if (!matchedTag) {
+      logger.warn(`No matching tag found for ${imageRef}, using original`);
+      return null;
+    }
+
+    // Get digest for matched tag
+    const digest = await getDigest(client, parsed.repository, matchedTag);
+
+    // Return full image reference with digest
+    return `${parsed.registry}/${parsed.repository}@${digest}`;
+  } catch (error) {
+    logger.warn(`Failed to resolve ${imageRef}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Check if a tag looks like it might be a semver range
+ */
+function isSemverLike(tag: string): boolean {
+  // Check for semver patterns: ^1.2.3, ~1.2.3, 1.2.*, >=1.2.3, etc.
+  return /^[~^>=<]?\d+(\.\d+)?(\.\d+)?/.test(tag);
 }
 
 /**
