@@ -9,7 +9,7 @@ import { hash } from "@felix/bcrypt";
 import { parseArgs } from "@std/cli/parse-args";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
-import { collectDomains, resolveSemver, resolveServices } from "../core/deployer.ts";
+import { collectDomains, resolveServices } from "../core/deployer.ts";
 import { validateDns } from "../core/dns.ts";
 
 import { generateCaddyJson } from "../generators/caddy.ts";
@@ -314,26 +314,22 @@ async function applyInitialStack(
 ): Promise<void> {
   logger.info("Generating production configuration...");
 
-  // Step 1: Resolve services (same as /apply does)
-  const services = resolveServices(intent);
+  // Step 1: Resolve services (includes image resolution)
+  const services = await resolveServices(intent);
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
-  // Step 2: Resolve semver ranges to digests
-  const resolvedImages = await resolveSemver(intent);
-  logger.info(`✓ Resolved ${resolvedImages.size} image(s) to digests`);
-
-  // Step 3: Validate DNS for all domains
+  // Step 2: Validate DNS for all domains
   const domains = collectDomains(services);
   await validateDns(domains);
 
-  // Step 4: Generate docker-compose.yml and Caddy.json
+  // Step 3: Generate docker-compose.yml and Caddy.json
   const composeYaml = generateCompose(services);
   const composePath = `${dataDir}/docker-compose.yml`;
 
   const caddyJson = generateCaddyJson(services, intent.adminEmail);
   const caddyPath = `${dataDir}/Caddy.json`;
 
-  // Step 5: Validate generated compose config
+  // Step 4: Validate generated compose config
   const tempComposePath = `${dataDir}/.docker-compose.yml.tmp`;
   await writeTextFile(tempComposePath, composeYaml);
 
@@ -355,16 +351,22 @@ async function applyInitialStack(
   await writeTextFile(caddyPath, caddyJson);
   logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
 
-  // Step 7: Save initial intent.json
+  // Step 5: Save initial intent.json
+  const resolvedImages = Object.fromEntries(
+    services
+      .filter((s) => s.imageRef !== s.image)
+      .map((s) => [s.name, s.image]),
+  );
+
   const appliedIntent = {
     ...intent,
     appliedAt: new Date().toISOString(),
-    resolvedImages: Object.fromEntries(resolvedImages),
+    resolvedImages,
   };
   await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
   logger.info(`✓ Wrote intent.json to ${dataDir}`);
 
-  // Step 8: Start the production stack (with health check waiting)
+  // Step 6: Start the production stack (with health check waiting)
   logger.info("");
   logger.info("Starting production stack...");
   await composeUpWithWait(composePath);

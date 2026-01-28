@@ -49,10 +49,9 @@ export function collectDomains(services: ResolvedService[]): string[] {
  * Resolve services from intent
  *
  * Unifies all deployable services (infrastructure and user apps) into a
- * consistent structure for downstream processing (semver resolution, composition
- * generation, etc.).
+ * consistent structure. Resolves semver ranges to immutable digests in parallel.
  */
-export function resolveServices(intent: Intent): ResolvedService[] {
+export async function resolveServices(intent: Intent): Promise<ResolvedService[]> {
   const dataDir = intent.dataDir ?? "/var/infra";
   const services: ResolvedService[] = [];
 
@@ -61,7 +60,7 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     name: "caddy",
     domain: intent.tower.domain,
     port: 80,
-    version: "latest",
+    imageRef: "caddy:2",
     image: "caddy:2",
     restart: "unless-stopped",
     ports: [
@@ -85,7 +84,7 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     name: "registry",
     domain: intent.registry.domain,
     port: 5000,
-    version: "latest",
+    imageRef: "registry:2",
     image: "registry:2",
     upstreamName: "registry",
     upstreamPort: 5000,
@@ -106,12 +105,13 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     },
   });
 
+  const towerImage = `ghcr.io/dldc-packages/tower:${intent.tower.version}`;
   services.push({
     name: "tower",
     domain: intent.tower.domain,
     port: 3000,
-    version: intent.tower.version,
-    image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
+    imageRef: towerImage,
+    image: towerImage,
     upstreamName: "tower",
     upstreamPort: 3100,
     authPolicy: "basic_all",
@@ -133,12 +133,13 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     },
   });
 
+  const otelImage = `grafana/otel-lgtm:${intent.otel.version}`;
   services.push({
     name: "otel",
     domain: intent.otel.domain,
     port: 3000,
-    version: intent.otel.version,
-    image: `grafana/otel-lgtm:${intent.otel.version}`,
+    imageRef: otelImage,
+    image: otelImage,
     upstreamName: "otel-lgtm",
     upstreamPort: 3000,
     authPolicy: "none",
@@ -148,49 +149,41 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     ],
   });
 
-  // Add user-defined apps
-  for (const app of intent.apps) {
-    const image = normalizeLocalRegistry(app.image, intent);
-    const environment: Record<string, string> = {
-      ...(app.env ?? {}),
-      ...(app.secrets ?? {}),
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
-    };
+  // Resolve all app images in parallel
+  const appServices = await Promise.all(
+    intent.apps.map(async (app) => {
+      const normalizedImageRef = normalizeLocalRegistry(app.image, intent);
+      const resolvedImage = await resolveImageToDigest(normalizedImageRef, intent);
 
-    services.push({
-      name: app.name,
-      domain: app.domain,
-      port: app.port ?? 3000,
-      version: app.image,
-      image,
-      upstreamName: app.name,
-      upstreamPort: app.port ?? 3000,
-      authPolicy: "none",
-      restart: "unless-stopped",
-      env: environment,
-      healthCheck: app.healthCheck,
-    });
-  }
+      const environment: Record<string, string> = {
+        ...(app.env ?? {}),
+        ...(app.secrets ?? {}),
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
+      };
+
+      if (resolvedImage) {
+        logger.debug(`Resolved ${app.name}: ${app.image} → ${resolvedImage}`);
+      }
+
+      return {
+        name: app.name,
+        domain: app.domain,
+        port: app.port ?? 3000,
+        imageRef: app.image,
+        image: resolvedImage ?? normalizedImageRef,
+        upstreamName: app.name,
+        upstreamPort: app.port ?? 3000,
+        authPolicy: "none" as const,
+        restart: "unless-stopped",
+        env: environment,
+        healthCheck: app.healthCheck,
+      };
+    }),
+  );
+
+  services.push(...appServices);
 
   return services;
-}
-
-/**
- * Resolve semver ranges in intent to immutable digests
- */
-export async function resolveSemver(intent: Intent): Promise<Map<string, string>> {
-  const resolvedImages = new Map<string, string>();
-
-  for (const app of intent.apps) {
-    const image = normalizeLocalRegistry(app.image, intent);
-    const resolved = await resolveImageToDigest(image, intent);
-    if (resolved) {
-      resolvedImages.set(app.name, resolved);
-      logger.debug(`Resolved ${app.name}: ${app.image} → ${resolved}`);
-    }
-  }
-
-  return resolvedImages;
 }
 
 /**

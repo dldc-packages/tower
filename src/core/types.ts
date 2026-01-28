@@ -36,10 +36,10 @@ export interface ResolvedService {
   /** Listening port */
   port: number;
 
-  /** Version (semver, exact version, or digest) */
-  version: string;
+  /** Original image reference from intent (may contain semver range, tag, or digest) */
+  imageRef: string;
 
-  /** Docker image reference */
+  /** Resolved immutable image reference (with digest when available) */
   image: string;
 
   /** Upstream container DNS name for reverse proxy (defaults to name) */
