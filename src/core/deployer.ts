@@ -155,6 +155,11 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       policy: "none",
     },
     restart: "unless-stopped",
+    ports: [
+      { host: 3000, container: 3000 },
+      { host: 4317, container: 4317 },
+      { host: 4318, container: 4318 },
+    ],
     volumes: [
       { type: "named", name: "otel_lgtm_data", target: "/data" },
     ],
