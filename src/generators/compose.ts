@@ -86,7 +86,7 @@ function generateInfraServices(intent: Intent, dataDir: string): Record<string, 
         "caddy_data:/data",
         "caddy_config:/config",
       ],
-      command: ["caddy", "run", "--config", "/etc/caddy/Caddy.json", "--adapter", "jsonc"],
+      command: ["caddy", "run", "--config", "/etc/caddy/Caddy.json"],
       healthcheck: {
         test: ["CMD", "curl", "-f", "http://localhost:2019/health"],
         interval: "10s",
