@@ -30,9 +30,6 @@ export interface ResolvedService extends App {
   /** Service kind */
   kind: "infra" | "app";
 
-  /** Original image reference from intent (may contain semver range, tag, or digest) */
-  imageRef: string;
-
   /** Resolved immutable image reference (with digest when available) */
   imageDigest: string;
 

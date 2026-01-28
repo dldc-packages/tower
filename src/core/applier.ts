@@ -86,18 +86,7 @@ export async function apply(intent: Intent): Promise<void> {
   logger.info("✓ Reloaded Caddy via admin API");
 
   // Step 8: Save applied intent with resolved images
-  const resolvedImages = Object.fromEntries(
-    services
-      .filter((s) => s.kind === "app" && s.imageRef !== s.imageDigest)
-      .map((s) => [s.name, s.imageDigest]),
-  );
-
-  const appliedIntent = {
-    ...validatedIntent,
-    appliedAt: new Date().toISOString(),
-    resolvedImages,
-  };
-  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
+  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(intent, null, 2));
   logger.info("✓ Saved applied intent");
 
   const appCount = intent.apps.length;

@@ -352,18 +352,7 @@ async function applyInitialStack(
   logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
 
   // Step 5: Save initial intent.json
-  const resolvedImages = Object.fromEntries(
-    services
-      .filter((s) => s.kind === "app" && s.imageRef !== s.imageDigest)
-      .map((s) => [s.name, s.imageDigest]),
-  );
-
-  const appliedIntent = {
-    ...intent,
-    appliedAt: new Date().toISOString(),
-    resolvedImages,
-  };
-  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
+  await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(intent, null, 2));
   logger.info(`✓ Wrote intent.json to ${dataDir}`);
 
   // Step 6: Start the production stack (with health check waiting)
