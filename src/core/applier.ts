@@ -52,7 +52,7 @@ export async function apply(intent: Intent): Promise<void> {
   await validateDns(domains);
 
   // Step 5: Generate docker-compose.yml and Caddy.json
-  const composeYaml = generateCompose(validatedIntent, resolvedImages);
+  const composeYaml = generateCompose(services);
   const composePath = `${dataDir}/docker-compose.yml`;
 
   const caddyJson = generateCaddyJson(services, validatedIntent.adminEmail);
@@ -98,6 +98,6 @@ export async function apply(intent: Intent): Promise<void> {
   await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
   logger.info("✓ Saved applied intent");
 
-  const appCount = services.filter((s) => s.type === "app").length;
+  const appCount = intent.apps.length;
   logger.info(`✅ Deployment complete: ${appCount} app(s) running`);
 }

@@ -53,21 +53,36 @@ export function collectDomains(services: ResolvedService[]): string[] {
  * generation, etc.).
  */
 export function resolveServices(intent: Intent): ResolvedService[] {
+  const dataDir = intent.dataDir ?? "/var/infra";
   const services: ResolvedService[] = [];
 
   // Add infrastructure services
   services.push({
     name: "caddy",
-    type: "infra",
     domain: intent.tower.domain,
     port: 80,
     version: "latest",
-    image: "caddy:latest",
+    image: "caddy:2",
+    restart: "unless-stopped",
+    ports: [
+      { host: 80, container: 80 },
+      { host: 443, container: 443 },
+    ],
+    volumes: [
+      {
+        type: "bind",
+        source: `${dataDir}/Caddy.json`,
+        target: "/etc/caddy/Caddy.json",
+        readonly: true,
+      },
+      { type: "named", name: "caddy_data", target: "/data" },
+      { type: "named", name: "caddy_config", target: "/config" },
+    ],
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddy.json"],
   });
 
   services.push({
     name: "registry",
-    type: "infra",
     domain: intent.registry.domain,
     port: 5000,
     version: "latest",
@@ -81,11 +96,18 @@ export function resolveServices(intent: Intent): ResolvedService[] {
         passwordHash: intent.registry.passwordHash,
       },
     ],
+    restart: "unless-stopped",
+    volumes: [
+      { type: "named", name: "registry_data", target: "/var/lib/registry" },
+    ],
+    env: {
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: "/var/lib/registry",
+      REGISTRY_STORAGE_DELETE_ENABLED: "true",
+    },
   });
 
   services.push({
     name: "tower",
-    type: "infra",
     domain: intent.tower.domain,
     port: 3000,
     version: intent.tower.version,
@@ -99,7 +121,13 @@ export function resolveServices(intent: Intent): ResolvedService[] {
         passwordHash: intent.tower.passwordHash,
       },
     ],
+    restart: "unless-stopped",
+    volumes: [
+      { type: "bind", source: dataDir, target: dataDir },
+      { type: "bind", source: "/var/run/docker.sock", target: "/var/run/docker.sock" },
+    ],
     env: {
+      TOWER_DATA_DIR: dataDir,
       OTEL_DENO: "true",
       OTEL_DENO_CONSOLE: "capture",
     },
@@ -107,7 +135,6 @@ export function resolveServices(intent: Intent): ResolvedService[] {
 
   services.push({
     name: "otel",
-    type: "infra",
     domain: intent.otel.domain,
     port: 3000,
     version: intent.otel.version,
@@ -115,14 +142,23 @@ export function resolveServices(intent: Intent): ResolvedService[] {
     upstreamName: "otel-lgtm",
     upstreamPort: 3000,
     authPolicy: "none",
+    restart: "unless-stopped",
+    volumes: [
+      { type: "named", name: "otel_lgtm_data", target: "/data" },
+    ],
   });
 
   // Add user-defined apps
   for (const app of intent.apps) {
     const image = normalizeLocalRegistry(app.image, intent);
+    const environment: Record<string, string> = {
+      ...(app.env ?? {}),
+      ...(app.secrets ?? {}),
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
+    };
+
     services.push({
       name: app.name,
-      type: "app",
       domain: app.domain,
       port: app.port ?? 3000,
       version: app.image,
@@ -130,8 +166,8 @@ export function resolveServices(intent: Intent): ResolvedService[] {
       upstreamName: app.name,
       upstreamPort: app.port ?? 3000,
       authPolicy: "none",
-      env: app.env,
-      secrets: app.secrets,
+      restart: "unless-stopped",
+      env: environment,
       healthCheck: app.healthCheck,
     });
   }

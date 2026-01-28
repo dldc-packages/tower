@@ -327,7 +327,7 @@ async function applyInitialStack(
   await validateDns(domains);
 
   // Step 4: Generate docker-compose.yml and Caddy.json
-  const composeYaml = generateCompose(intent, resolvedImages);
+  const composeYaml = generateCompose(services);
   const composePath = `${dataDir}/docker-compose.yml`;
 
   const caddyJson = generateCaddyJson(services, intent.adminEmail);

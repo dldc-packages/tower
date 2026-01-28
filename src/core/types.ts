@@ -14,12 +14,21 @@ export interface AuthScope {
   method?: string[];
 }
 
+/** Discriminated union for volume types */
+export type Volume =
+  | { type: "bind"; source: string; target: string; readonly?: boolean }
+  | { type: "named"; name: string; target: string; readonly?: boolean };
+
+/** Port binding configuration */
+export interface Port {
+  host: number;
+  container: number;
+  protocol?: "tcp" | "udp";
+}
+
 export interface ResolvedService {
   /** Service name */
   name: string;
-
-  /** Service type: infrastructure or user-defined application */
-  type: "infra" | "app";
 
   /** Primary domain */
   domain: string;
@@ -56,4 +65,17 @@ export interface ResolvedService {
 
   /** Health check configuration */
   healthCheck?: HealthCheck;
+
+  // Docker Compose specific properties
+  /** Container restart policy */
+  restart?: string;
+
+  /** Docker volumes to mount (bind or named) */
+  volumes?: Volume[];
+
+  /** Port bindings (host:container) */
+  ports?: Port[];
+
+  /** Container startup command */
+  command?: string[];
 }
