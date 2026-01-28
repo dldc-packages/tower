@@ -67,7 +67,6 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
 
   // Add security options and user for app services
   if (service.kind === "app") {
-    composeService.user = service.user ?? "1000:1000";
     composeService.security_opt = ["no-new-privileges:true"];
   }
 
@@ -107,6 +106,11 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
   // Add command if defined
   if (service.command && service.command.length > 0) {
     composeService.command = service.command;
+  }
+
+  // Add depends_on if defined
+  if (service.dependsOn && service.dependsOn.length > 0) {
+    composeService.depends_on = service.dependsOn;
   }
 
   // Add health check if defined

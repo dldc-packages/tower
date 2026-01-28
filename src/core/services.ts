@@ -26,6 +26,9 @@ export interface ResolvedService extends App {
 
   /** Unix user to run container as (only for app services) */
   user?: string;
+
+  /** Service dependencies (inherited from App, included for clarity) */
+  dependsOn?: string[];
 }
 
 /**
@@ -220,7 +223,6 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
         kind: "app",
         imageDigest: resolvedImage ?? normalizedImageRef,
         ...app,
-        user: "1000:1000",
         env: {
           ...baseEnvs,
           ...app.env,

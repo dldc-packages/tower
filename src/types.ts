@@ -111,6 +111,9 @@ export interface App {
    * {kind: 'basic', ...} = basic auth required for all requests
    */
   auth?: Auth;
+
+  /** Service dependencies (names of other services this service depends on) */
+  dependsOn?: string[];
 }
 
 export interface Auth {
