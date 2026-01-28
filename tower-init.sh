@@ -131,9 +131,9 @@ echo ""
 echo "Running Tower initialization..."
 echo ""
 
-# Ensure /var/infra is root-only
+# Ensure /var/infra exists with proper permissions for tower user (UID 1000)
 mkdir -p /var/infra
-chown root:root /var/infra
+chown 1000:1000 /var/infra
 chmod 700 /var/infra
 
 # Pull the latest image to avoid using stale cache
@@ -188,6 +188,11 @@ docker run --rm -it \
     task command:init
 
 if [[ $? -eq 0 ]]; then
+    # Ensure all files in /var/infra are owned by tower user (UID 1000)
+    # This is needed because the init container runs as root
+    echo "Setting proper ownership on /var/infra..."
+    chown -R 1000:1000 /var/infra
+    
     echo ""
     echo -e "${GREEN}✓ Tower initialization complete!${NC}"
 else

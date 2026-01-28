@@ -4,6 +4,8 @@
  * Helpers for reading/writing Tower configuration files.
  */
 
+import { dirname } from "jsr:@std/path";
+
 /**
  * Ensure directory exists, create if missing
  */
@@ -34,6 +36,10 @@ export async function readTextFile(path: string): Promise<string> {
  */
 export async function writeTextFile(path: string, content: string): Promise<void> {
   try {
+    // Ensure parent directory exists
+    const dir = dirname(path);
+    await ensureDir(dir);
+
     await Deno.writeTextFile(path, content);
     console.log(`Wrote file: ${path}`);
   } catch (error) {

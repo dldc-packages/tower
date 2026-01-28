@@ -96,13 +96,24 @@ export async function composeUp(composeFile: string): Promise<void> {
 export async function composeUpWithWait(composeFile: string): Promise<void> {
   const command = new Deno.Command("docker", {
     args: ["compose", "-f", composeFile, "up", "-d", "--wait"],
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: "piped",
+    stderr: "piped",
   });
 
   const result = await command.output();
+
+  const decoder = new TextDecoder();
+  const stdout = decoder.decode(result.stdout);
+  const stderr = decoder.decode(result.stderr);
+
+  // Always log output for debugging
+  if (stdout) console.log(stdout);
+  if (stderr) console.error(stderr);
+
   if (result.code !== 0) {
-    throw new Error(`docker compose up --wait failed with code ${result.code}`);
+    throw new Error(
+      `docker compose up --wait failed with code ${result.code}\nStderr: ${stderr}`,
+    );
   }
 }
 
