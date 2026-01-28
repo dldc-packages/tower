@@ -110,7 +110,13 @@ export interface App {
    * undefined = no auth required
    * {kind: 'basic', ...} = basic auth required for all requests
    */
-  auth?: { kind: "basic"; username: string; passwordHash: string };
+  auth?: Auth;
+}
+
+export interface Auth {
+  kind: "basic";
+  username: string;
+  passwordHash: string;
 }
 
 /**

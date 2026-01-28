@@ -5,7 +5,7 @@
  */
 
 import * as v from "@valibot/valibot";
-import type { App, HealthCheck, Intent, Volume } from "../types.ts";
+import type { App, Auth, HealthCheck, Ingress, Intent, Volume } from "../types.ts";
 import { ValidationError } from "../utils/errors.ts";
 
 // Domain validation regex
@@ -78,7 +78,7 @@ const volumeSchema: v.GenericSchema<Volume> = v.union([
 ]);
 
 // Ingress schema
-const ingressSchema: v.GenericSchema<{ domains: string[]; port: number }> = v.object({
+const ingressSchema: v.GenericSchema<Ingress> = v.object({
   domains: v.pipe(
     v.array(domainSchema),
     v.minLength(1, "Ingress must have at least one domain"),
@@ -91,7 +91,7 @@ const ingressSchema: v.GenericSchema<{ domains: string[]; port: number }> = v.ob
 });
 
 // Auth schema (simple: either undefined or {kind: 'basic', username, passwordHash})
-const authSchema = v.optional(
+const authSchema: v.GenericSchema<Auth | undefined> = v.optional(
   v.object({
     kind: v.literal("basic"),
     username: v.pipe(v.string(), v.minLength(1, "Username must not be empty")),
@@ -137,8 +137,6 @@ const intentSchema: v.GenericSchema<Intent> = v.object({
   otel: v.object({
     version: v.pipe(v.string(), v.minLength(1, "OTEL version must not be empty")),
     domain: domainSchema,
-    username: v.pipe(v.string(), v.minLength(1, "OTEL username must not be empty")),
-    passwordHash: v.pipe(v.string(), v.minLength(1, "OTEL password hash must not be empty")),
   }),
   apps: v.array(appSchema),
 });
