@@ -131,6 +131,11 @@ echo ""
 echo "Running Tower initialization..."
 echo ""
 
+# Ensure /var/infra is root-only
+mkdir -p /var/infra
+chown root:root /var/infra
+chmod 700 /var/infra
+
 # Pull the latest image to avoid using stale cache
 echo "Pulling Tower image: $TOWER_IMAGE"
 docker pull "$TOWER_IMAGE"
