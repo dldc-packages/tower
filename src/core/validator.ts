@@ -5,16 +5,7 @@
  */
 
 import * as v from "@valibot/valibot";
-import type {
-  App,
-  Auth,
-  AuthScope,
-  BasicAuthUser,
-  HealthCheck,
-  Intent,
-  Port,
-  Volume,
-} from "../types.ts";
+import type { App, HealthCheck, Intent, Port, Volume } from "../types.ts";
 import { ValidationError } from "../utils/errors.ts";
 
 // Domain validation regex
@@ -91,22 +82,12 @@ const portSchema: v.GenericSchema<Port> = v.object({
   protocol: v.optional(v.picklist(["tcp", "udp"])),
 });
 
-// Auth schema
-const basicAuthUserSchema: v.GenericSchema<BasicAuthUser> = v.object({
-  username: v.string(),
-  passwordHash: v.string(),
-});
-
-const authScopeSchema: v.GenericSchema<AuthScope> = v.object({
-  path: v.optional(v.array(v.string())),
-  method: v.optional(v.array(v.string())),
-});
-
-const authSchema: v.GenericSchema<Auth | undefined> = v.optional(
+// Auth schema (simple: either undefined or {kind: 'basic', username, passwordHash})
+const authSchema = v.optional(
   v.object({
-    policy: v.picklist(["none", "basic_all", "basic_write_only", "basic_scoped"]),
-    basicUsers: v.optional(v.array(basicAuthUserSchema)),
-    scopes: v.optional(v.array(authScopeSchema)),
+    kind: v.literal("basic"),
+    username: v.pipe(v.string(), v.minLength(1, "Username must not be empty")),
+    passwordHash: v.pipe(v.string(), v.minLength(1, "Password hash must not be empty")),
   }),
 );
 

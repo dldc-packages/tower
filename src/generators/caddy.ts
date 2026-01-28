@@ -5,7 +5,6 @@
  */
 
 import { ResolvedService } from "../core/services.ts";
-import { AuthScope, BasicAuthUser } from "../types.ts";
 import { logger } from "../utils/logger.ts";
 
 export function generateCaddyJson(
@@ -28,30 +27,15 @@ export function generateCaddyJson(
 
     const upstreamDial = `${serviceName}:${port}`;
     const auth = svc.auth;
-    const accounts = toBasicAccounts(auth?.basicUsers);
 
-    if (
-      (auth?.policy === "basic_all" || auth?.policy === "basic_write_only" ||
-        auth?.policy === "basic_scoped") && accounts.length === 0
-    ) {
-      logger.warn(
-        `Service "${serviceName}" uses auth policy=${auth?.policy} but has no basic auth users configured`,
-      );
+    if (auth) {
+      // Service requires basic auth for all requests
+      const account = { username: auth.username, password: auth.passwordHash };
+      routes.push(buildBasicAuthRoute(domain, upstreamDial, account));
+    } else {
+      // No auth required, simple reverse proxy
+      routes.push(buildOpenRoute(domain, upstreamDial));
     }
-
-    if (auth?.policy === "basic_all") {
-      routes.push(buildBasicAllRoute(domain, upstreamDial, accounts));
-      continue;
-    }
-
-    if (auth?.policy === "basic_write_only" || auth?.policy === "basic_scoped") {
-      const scopes = normalizeScopes(auth?.scopes, auth?.policy);
-      routes.push(buildScopedRoute(domain, upstreamDial, accounts, scopes));
-      continue;
-    }
-
-    // Default: no auth, reverse proxy
-    routes.push(buildOpenRoute(domain, upstreamDial));
   }
 
   const config = {
@@ -100,89 +84,19 @@ export function generateCaddyJson(
   return JSON.stringify(config, null, 2);
 }
 
-function toBasicAccounts(users?: BasicAuthUser[]) {
-  return (users ?? []).map((u) => ({ username: u.username, password: u.passwordHash }));
-}
-
-function buildBasicAllRoute(
+function buildBasicAuthRoute(
   domain: string,
   upstreamDial: string,
-  accounts: Array<Record<string, unknown>>,
+  account: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
     match: [{ host: [domain] }],
     handle: [
       {
         handler: "authentication",
-        providers: { http_basic: { accounts } },
+        providers: { http_basic: { accounts: [account] } },
       },
       { handler: "reverse_proxy", upstreams: [{ dial: upstreamDial }] },
-    ],
-    terminal: true,
-  };
-}
-
-function normalizeScopes(
-  scopes: AuthScope[] | undefined,
-  policy: "basic_write_only" | "basic_scoped",
-): AuthScope[] {
-  const hasCustomScopes = scopes?.length;
-  if (hasCustomScopes) {
-    return scopes!.filter((scope) =>
-      (scope.path?.length ?? 0) > 0 || (scope.method?.length ?? 0) > 0
-    );
-  }
-
-  if (policy === "basic_write_only") {
-    return [
-      {
-        path: ["/v2/*"],
-        method: ["POST", "PUT", "PATCH", "DELETE"],
-      },
-    ];
-  }
-
-  return [];
-}
-
-function buildScopedRoute(
-  domain: string,
-  upstreamDial: string,
-  accounts: Array<Record<string, unknown>>,
-  scopes: AuthScope[],
-): Record<string, unknown> {
-  const protectedRoutes = scopes.map((scope) => ({
-    match: [
-      {
-        ...(scope.path ? { path: scope.path } : {}),
-        ...(scope.method ? { method: scope.method } : {}),
-      },
-    ],
-    handle: [
-      {
-        handler: "authentication",
-        providers: { http_basic: { accounts } },
-      },
-      { handler: "reverse_proxy", upstreams: [{ dial: upstreamDial }] },
-    ],
-  }));
-
-  const fallback = {
-    handle: [{ handler: "reverse_proxy", upstreams: [{ dial: upstreamDial }] }],
-  };
-
-  // If no scopes are provided, fall back to protecting everything.
-  if (protectedRoutes.length === 0) {
-    return buildBasicAllRoute(domain, upstreamDial, accounts);
-  }
-
-  return {
-    match: [{ host: [domain] }],
-    handle: [
-      {
-        handler: "subroute",
-        routes: [...protectedRoutes, fallback],
-      },
     ],
     terminal: true,
   };

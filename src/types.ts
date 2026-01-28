@@ -109,34 +109,10 @@ export interface App {
 
   /**
    * Authentication configuration
-   * Controls access restrictions and credential validation
+   * undefined = no auth required
+   * {kind: 'basic', ...} = basic auth required for all requests
    */
-  auth?: Auth;
-}
-
-export interface BasicAuthUser {
-  /** Username for basic auth */
-  username: string;
-  /** Bcrypt hash of the password */
-  passwordHash: string;
-}
-
-/** Authentication scope for path/method restrictions */
-export interface AuthScope {
-  /** URL paths this scope applies to (e.g., ["/admin", "/settings"]) */
-  path?: string[];
-  /** HTTP methods this scope applies to (e.g., ["GET", "POST"]) */
-  method?: string[];
-}
-
-/** Authentication configuration for a service */
-export interface Auth {
-  /** Authentication policy */
-  policy: "none" | "basic_all" | "basic_write_only" | "basic_scoped";
-  /** Basic auth user credentials (username and bcrypt password hashes) */
-  basicUsers?: BasicAuthUser[];
-  /** Optional path/method restrictions for scoped auth */
-  scopes?: AuthScope[];
+  auth?: { kind: "basic"; username: string; passwordHash: string };
 }
 
 /**

@@ -111,13 +111,9 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     port: 5000,
     imageDigest: "registry:2",
     auth: {
-      policy: "basic_write_only",
-      basicUsers: [
-        {
-          username: intent.registry.username,
-          passwordHash: intent.registry.passwordHash,
-        },
-      ],
+      kind: "basic",
+      username: intent.registry.username,
+      passwordHash: intent.registry.passwordHash,
     },
     restart: "unless-stopped",
     volumes: [
@@ -146,13 +142,9 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     port: 3000,
     imageDigest: towerImage,
     auth: {
-      policy: "basic_all",
-      basicUsers: [
-        {
-          username: intent.tower.username,
-          passwordHash: intent.tower.passwordHash,
-        },
-      ],
+      kind: "basic",
+      username: intent.tower.username,
+      passwordHash: intent.tower.passwordHash,
     },
     restart: "unless-stopped",
     volumes: [
@@ -182,9 +174,6 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     domain: intent.otel.domain,
     port: 3000,
     imageDigest: otelImage,
-    auth: {
-      policy: "none",
-    },
     restart: "unless-stopped",
     ports: [
       { host: 3000, container: 3000 },
