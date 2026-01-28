@@ -35,7 +35,27 @@ fi
 echo "Collecting configuration..."
 echo ""
 
-# Prompt for admin email
+# Prompt for firewall setup
+read -p "Enable UFW firewall? (recommended for production) [y/N]: " ENABLE_FIREWALL
+ENABLE_FIREWALL=${ENABLE_FIREWALL:-n}
+
+if [[ "$ENABLE_FIREWALL" =~ ^[Yy]$ ]]; then
+    # Check if UFW is installed
+    if ! command -v ufw &> /dev/null; then
+        echo -e "${RED}❌ UFW is not installed${NC}"
+        echo ""
+        echo "UFW installation instructions:"
+        echo "  Ubuntu/Debian: sudo apt-get install ufw"
+        echo "  CentOS/RHEL: sudo yum install ufw (or dnf on RHEL 8+)"
+        echo "  Fedora: sudo dnf install ufw"
+        echo "  Alpine: sudo apk add ufw"
+        echo ""
+        echo "After installing UFW, run this script again."
+        exit 1
+    fi
+fi
+
+echo ""
 read -p "Admin email (for Let's Encrypt ACME notifications): " ADMIN_EMAIL
 if [[ ! "$ADMIN_EMAIL" =~ @ ]] || [[ ! "$ADMIN_EMAIL" =~ \. ]]; then
     echo -e "${RED}❌ Please enter a valid email address${NC}"
@@ -120,6 +140,32 @@ echo ""
 echo "Docker image: $TOWER_IMAGE"
 docker image inspect "$TOWER_IMAGE" --format='  Version: {{.Config.Labels.version}}{{- if eq .Config.Labels.version ""}} (not set){{end}}'
 echo ""
+
+# Configure UFW firewall if user requested
+if [[ "$ENABLE_FIREWALL" =~ ^[Yy]$ ]]; then
+    echo "Configuring UFW firewall..."
+    
+    # Allow SSH (important: do this first to avoid locking yourself out)
+    sudo ufw allow 22/tcp > /dev/null 2>&1 || true
+    
+    # Allow HTTP and HTTPS
+    sudo ufw allow 80/tcp > /dev/null 2>&1 || true
+    sudo ufw allow 443/tcp > /dev/null 2>&1 || true
+    
+    # Set default policies
+    sudo ufw default deny incoming > /dev/null 2>&1 || true
+    sudo ufw default allow outgoing > /dev/null 2>&1 || true
+    
+    # Enable UFW (with auto yes to avoid interactive prompt)
+    echo "y" | sudo ufw enable > /dev/null 2>&1 || true
+    
+    echo -e "${GREEN}✓ Firewall configured${NC}"
+    echo "  - Allow SSH (22)"
+    echo "  - Allow HTTP (80)"
+    echo "  - Allow HTTPS (443)"
+    echo "  - Deny all other inbound traffic"
+    echo ""
+fi
 
 # Run docker with all the environment variables
 # Run as root since init needs to write to deno cache and docker socket

@@ -24,6 +24,9 @@ export interface ResolvedService extends App {
 
   /** Port bindings to expose on host (infrastructure services only) */
   ports?: Port[];
+
+  /** Unix user to run container as (only for app services) */
+  user?: string;
 }
 
 /**
@@ -210,6 +213,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
         kind: "app",
         imageDigest: resolvedImage ?? normalizedImageRef,
         ...app,
+        user: "1000:1000",
         env: {
           ...baseEnvs,
           ...app.env,

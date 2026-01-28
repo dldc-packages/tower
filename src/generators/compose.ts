@@ -66,6 +66,12 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
     restart: service.restart ?? "unless-stopped",
   };
 
+  // Add security options and user for app services
+  if (service.kind === "app") {
+    composeService.user = service.user ?? "1000:1000";
+    composeService.security_opt = ["no-new-privileges:true"];
+  }
+
   // Add environment variables if present
   if (Object.keys(environment).length > 0) {
     composeService.environment = Object.entries(environment).map(
