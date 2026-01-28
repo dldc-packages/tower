@@ -9,12 +9,12 @@ import { hash } from "@felix/bcrypt";
 import { parseArgs } from "@std/cli/parse-args";
 import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
+import { collectDomains, resolveSemver, resolveServices } from "../core/deployer.ts";
 import { validateDns } from "../core/dns.ts";
 import { waitForHealthy } from "../core/health.ts";
-import type { ResolvedService } from "../core/types.ts";
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
-import type { Credentials, Intent } from "../types.ts";
+import type { Intent } from "../types.ts";
 import { checkDocker, checkDockerCompose, composeUp, validateCompose } from "../utils/exec.ts";
 import { ensureDir, fileExists, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
@@ -59,7 +59,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   // Step 5: Generate production configs and start stack
   logger.info("");
-  await applyInitialStack(intent, dataDir, hashedCredentials);
+  await applyInitialStack(intent, dataDir);
 
   // Step 6: Wait for services to be healthy
   logger.info("");
@@ -311,28 +311,11 @@ function generateInitialIntent(
 async function applyInitialStack(
   intent: Intent,
   dataDir: string,
-  hashedCredentials: {
-    tower: { username: string; passwordHash: string };
-    registry: { username: string; passwordHash: string };
-    otel: { username: string; passwordHash: string };
-  },
 ): Promise<void> {
   logger.info("Generating production configuration...");
 
-  // Build credentials object
-  const credentials: Credentials = {
-    tower: {
-      username: hashedCredentials.tower.username,
-      password_hash: hashedCredentials.tower.passwordHash,
-    },
-    registry: {
-      username: hashedCredentials.registry.username,
-      password_hash: hashedCredentials.registry.passwordHash,
-    },
-  };
-
   // Step 1: Resolve services (same as /apply does)
-  const services = resolveServices(intent, credentials);
+  const services = resolveServices(intent);
   logger.info(`✓ Resolved ${services.length} service(s)`);
 
   // Step 2: Resolve semver ranges to digests
@@ -372,11 +355,6 @@ async function applyInitialStack(
   await writeTextFile(caddyPath, caddyJson);
   logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
 
-  // Step 6: Save credentials.json for Tower to read
-  const credentialsPath = `${dataDir}/credentials.json`;
-  await writeTextFile(credentialsPath, JSON.stringify(credentials, null, 2));
-  logger.info(`✓ Wrote credentials.json to ${dataDir}`);
-
   // Step 7: Save initial intent.json
   const appliedIntent = {
     ...intent,
@@ -391,208 +369,6 @@ async function applyInitialStack(
   logger.info("Starting production stack...");
   await composeUp(composePath);
   logger.info("✓ Production stack started");
-}
-
-/**
- * Collect all unique domains from services
- */
-function collectDomains(services: ResolvedService[]): string[] {
-  const domains = new Set<string>();
-  for (const svc of services) {
-    if (svc.domain) domains.add(svc.domain);
-  }
-  return Array.from(domains);
-}
-
-/**
- * Resolve services from intent (infrastructure + apps)
- */
-function resolveServices(intent: Intent, credentials: Credentials): ResolvedService[] {
-  const services: ResolvedService[] = [];
-
-  // Add infrastructure services
-  services.push({
-    name: "caddy",
-    type: "infra",
-    domain: intent.tower.domain,
-    port: 80,
-    version: "latest",
-    image: "caddy:latest",
-  });
-
-  services.push({
-    name: "registry",
-    type: "infra",
-    domain: intent.registry.domain,
-    port: 5000,
-    version: "latest",
-    image: "registry:2",
-    upstreamName: "registry",
-    upstreamPort: 5000,
-    authPolicy: "basic_write_only",
-    authBasicUsers: [
-      {
-        username: credentials.registry.username,
-        passwordHash: credentials.registry.password_hash,
-      },
-    ],
-  });
-
-  services.push({
-    name: "tower",
-    type: "infra",
-    domain: intent.tower.domain,
-    port: 3000,
-    version: intent.tower.version,
-    image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
-    upstreamName: "tower",
-    upstreamPort: 3100,
-    authPolicy: "basic_all",
-    authBasicUsers: [
-      {
-        username: credentials.tower.username,
-        passwordHash: credentials.tower.password_hash,
-      },
-    ],
-    env: {
-      OTEL_DENO: "true",
-      OTEL_DENO_CONSOLE: "capture",
-    },
-  });
-
-  services.push({
-    name: "otel",
-    type: "infra",
-    domain: intent.otel.domain,
-    port: 3000,
-    version: intent.otel.version,
-    image: `grafana/otel-lgtm:${intent.otel.version}`,
-    upstreamName: "otel-lgtm",
-    upstreamPort: 3000,
-    authPolicy: "none",
-  });
-
-  // Add user-defined apps
-  for (const app of intent.apps) {
-    const image = normalizeLocalRegistry(app.image, intent);
-    services.push({
-      name: app.name,
-      type: "app",
-      domain: app.domain,
-      port: app.port ?? 3000,
-      version: app.image,
-      image,
-      upstreamName: app.name,
-      upstreamPort: app.port ?? 3000,
-      authPolicy: "none",
-      env: app.env,
-      secrets: app.secrets,
-      healthCheck: app.healthCheck,
-    });
-  }
-
-  return services;
-}
-
-/**
- * Normalize registry:// prefix to registry domain
- */
-function normalizeLocalRegistry(image: string, intent: Intent): string {
-  const localPrefix = "registry://";
-  const withDomain = image.startsWith(localPrefix)
-    ? `${intent.registry.domain}/${image.slice(localPrefix.length)}`
-    : image;
-  return rewriteRegistryToInternal(withDomain, intent);
-}
-
-/**
- * Rewrite registry domain to internal service name
- */
-function rewriteRegistryToInternal(image: string, intent: Intent): string {
-  const prefix = `${intent.registry.domain}/`;
-  if (image.startsWith(prefix)) {
-    return image.replace(prefix, "registry:5000/");
-  }
-  return image;
-}
-
-/**
- * Resolve semver ranges in intent to immutable digests
- */
-async function resolveSemver(intent: Intent): Promise<Map<string, string>> {
-  const resolvedImages = new Map<string, string>();
-
-  for (const app of intent.apps) {
-    const image = normalizeLocalRegistry(app.image, intent);
-    const resolved = await resolveImageToDigest(image, intent);
-    if (resolved) {
-      resolvedImages.set(app.name, resolved);
-      logger.debug(`Resolved ${app.name}: ${app.image} → ${resolved}`);
-    }
-  }
-
-  return resolvedImages;
-}
-
-/**
- * Resolve a single image reference to an immutable digest
- */
-async function resolveImageToDigest(imageRef: string, intent: Intent): Promise<string | null> {
-  const { parseImageRef } = await import("../core/registry.ts");
-  const { matchSemverRange } = await import("../core/semver.ts");
-  const { createRegistryClient, listTags, getDigest } = await import("../core/registry.ts");
-
-  try {
-    const parsed = parseImageRef(imageRef);
-
-    // If already has a digest, return as-is
-    if (parsed.digest) {
-      return imageRef;
-    }
-
-    // If no tag or tag doesn't look like semver, return as-is
-    if (!parsed.tag || !isSemverLike(parsed.tag)) {
-      logger.debug(`Image ${imageRef} doesn't use semver, skipping resolution`);
-      return null;
-    }
-
-    // Determine if this is the internal registry
-    const isInternalRegistry = parsed.registry === "registry" ||
-      parsed.registry === intent.registry.domain;
-
-    // Create registry client
-    const baseUrl = isInternalRegistry ? "http://registry:5000" : `https://${parsed.registry}`;
-
-    const client = createRegistryClient(baseUrl);
-
-    // List available tags
-    const tags = await listTags(client, parsed.repository);
-
-    // Match semver range to available tags
-    const matchedTag = matchSemverRange(parsed.tag, tags);
-
-    if (!matchedTag) {
-      logger.warn(`No matching tag found for ${imageRef}, using original`);
-      return null;
-    }
-
-    // Get digest for matched tag
-    const digest = await getDigest(client, parsed.repository, matchedTag);
-
-    // Return full image reference with digest
-    return `${parsed.registry}/${parsed.repository}@${digest}`;
-  } catch (error) {
-    logger.warn(`Failed to resolve ${imageRef}:`, error);
-    return null;
-  }
-}
-
-/**
- * Check if a tag looks like it might be a semver range
- */
-function isSemverLike(tag: string): boolean {
-  // Check for semver patterns: ^1.2.3, ~1.2.3, 1.2.*, >=1.2.3, etc.
-  return /^[~^>=<]?\d+(\.\d+)?(\.\d+)?/.test(tag);
 }
 
 /**

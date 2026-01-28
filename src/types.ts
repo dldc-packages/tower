@@ -120,23 +120,6 @@ export interface AppliedIntent extends Intent {
 }
 
 /**
- * Credentials stored in /var/infra/credentials.json
- */
-export interface Credentials {
-  /** Tower API credentials */
-  tower: {
-    username: string;
-    password_hash: string;
-  };
-
-  /** Registry push credentials */
-  registry: {
-    username: string;
-    password_hash: string;
-  };
-}
-
-/**
  * Deployment status response
  */
 export interface DeploymentStatus {

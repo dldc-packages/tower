@@ -1,0 +1,225 @@
+/**
+ * Shared deployment utilities
+ *
+ * Common functions for resolving services, images, and normalizing image references.
+ * Used by both the /apply endpoint (applier.ts) and initialization (init.ts).
+ */
+
+import type { Intent } from "@dldc/tower/types";
+import { logger } from "../utils/logger.ts";
+import type { ResolvedService } from "./types.ts";
+
+/**
+ * Rewrite image registry host to the internal registry service when it points
+ * to the registry defined in the intent.
+ */
+export function rewriteRegistryToInternal(image: string, intent: Intent): string {
+  const prefix = `${intent.registry.domain}/`;
+  if (image.startsWith(prefix)) {
+    return image.replace(prefix, "registry:5000/");
+  }
+  return image;
+}
+
+/**
+ * Normalize image refs that target the local registry by accepting the
+ * portable prefix "registry://" and replacing it with the registry domain from
+ * the intent. The result is then rewritten to the in-cluster registry service.
+ */
+export function normalizeLocalRegistry(image: string, intent: Intent): string {
+  const localPrefix = "registry://";
+  const withDomain = image.startsWith(localPrefix)
+    ? `${intent.registry.domain}/${image.slice(localPrefix.length)}`
+    : image;
+  return rewriteRegistryToInternal(withDomain, intent);
+}
+
+/**
+ * Collect all unique domains from services
+ */
+export function collectDomains(services: ResolvedService[]): string[] {
+  const domains = new Set<string>();
+  for (const svc of services) {
+    if (svc.domain) domains.add(svc.domain);
+  }
+  return Array.from(domains);
+}
+
+/**
+ * Resolve services from intent
+ *
+ * Unifies all deployable services (infrastructure and user apps) into a
+ * consistent structure for downstream processing (semver resolution, composition
+ * generation, etc.).
+ */
+export function resolveServices(intent: Intent): ResolvedService[] {
+  const services: ResolvedService[] = [];
+
+  // Add infrastructure services
+  services.push({
+    name: "caddy",
+    type: "infra",
+    domain: intent.tower.domain,
+    port: 80,
+    version: "latest",
+    image: "caddy:latest",
+  });
+
+  services.push({
+    name: "registry",
+    type: "infra",
+    domain: intent.registry.domain,
+    port: 5000,
+    version: "latest",
+    image: "registry:2",
+    upstreamName: "registry",
+    upstreamPort: 5000,
+    authPolicy: "basic_write_only",
+    authBasicUsers: [
+      {
+        username: intent.registry.username,
+        passwordHash: intent.registry.passwordHash,
+      },
+    ],
+  });
+
+  services.push({
+    name: "tower",
+    type: "infra",
+    domain: intent.tower.domain,
+    port: 3000,
+    version: intent.tower.version,
+    image: `ghcr.io/dldc-packages/tower:${intent.tower.version}`,
+    upstreamName: "tower",
+    upstreamPort: 3100,
+    authPolicy: "basic_all",
+    authBasicUsers: [
+      {
+        username: intent.tower.username,
+        passwordHash: intent.tower.passwordHash,
+      },
+    ],
+    env: {
+      OTEL_DENO: "true",
+      OTEL_DENO_CONSOLE: "capture",
+    },
+  });
+
+  services.push({
+    name: "otel",
+    type: "infra",
+    domain: intent.otel.domain,
+    port: 3000,
+    version: intent.otel.version,
+    image: `grafana/otel-lgtm:${intent.otel.version}`,
+    upstreamName: "otel-lgtm",
+    upstreamPort: 3000,
+    authPolicy: "none",
+  });
+
+  // Add user-defined apps
+  for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
+    services.push({
+      name: app.name,
+      type: "app",
+      domain: app.domain,
+      port: app.port ?? 3000,
+      version: app.image,
+      image,
+      upstreamName: app.name,
+      upstreamPort: app.port ?? 3000,
+      authPolicy: "none",
+      env: app.env,
+      secrets: app.secrets,
+      healthCheck: app.healthCheck,
+    });
+  }
+
+  return services;
+}
+
+/**
+ * Resolve semver ranges in intent to immutable digests
+ */
+export async function resolveSemver(intent: Intent): Promise<Map<string, string>> {
+  const resolvedImages = new Map<string, string>();
+
+  for (const app of intent.apps) {
+    const image = normalizeLocalRegistry(app.image, intent);
+    const resolved = await resolveImageToDigest(image, intent);
+    if (resolved) {
+      resolvedImages.set(app.name, resolved);
+      logger.debug(`Resolved ${app.name}: ${app.image} → ${resolved}`);
+    }
+  }
+
+  return resolvedImages;
+}
+
+/**
+ * Resolve a single image reference to an immutable digest
+ */
+export async function resolveImageToDigest(
+  
+ ,
+
+  imageRef: string,
+  intent: Intent,
+): Promise<string | null> {
+  const { parseImageRef } = await import("./registry.ts");
+  const { matchSemverRange } = await import("./semver.ts");
+  const { createRegistryClient, listTags, getDigest } = await import("./registry.ts");
+
+  try {
+    const parsed = parseImageRef(imageRef);
+
+    // If already has a digest, return as-is
+    if (parsed.digest) {
+      return imageRef;
+    }
+
+    // If no tag or tag doesn't look like semver, return as-is
+    if (!parsed.tag || !isSemverLike(parsed.tag)) {
+      logger.debug(`Image ${imageRef} doesn't use semver, skipping resolution`);
+      return null;
+    }
+
+    // Determine if this is the internal registry
+    const isInternalRegistry = parsed.registry === "registry" ||
+      parsed.registry === intent.registry.domain;
+
+    // Create registry client
+    const baseUrl = isInternalRegistry ? "http://registry:5000" : `https://${parsed.registry}`;
+
+    const client = createRegistryClient(baseUrl);
+
+    // List available tags
+    const tags = await listTags(client, parsed.repository);
+
+    // Match semver range to available tags
+    const matchedTag = matchSemverRange(parsed.tag, tags);
+
+    if (!matchedTag) {
+      logger.warn(`No matching tag found for ${imageRef}, using original`);
+      return null;
+    }
+
+    // Get digest for matched tag
+    const digest = await getDigest(client, parsed.repository, matchedTag);
+
+    // Return full image reference with digest
+    return `${parsed.registry}/${parsed.repository}@${digest}`;
+  } catch (error) {
+    logger.warn(`Failed to resolve ${imageRef}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Check if a tag looks like it might be a semver range
+ */
+export function isSemverLike(tag: string): boolean {
+  // Check for semver patterns: ^1.2.3, ~1.2.3, 1.2.*, >=1.2.3, etc.
+  return /^[~^>=<]?\d+(\.\d+)?(\.\d+)?/.test(tag);
+}
