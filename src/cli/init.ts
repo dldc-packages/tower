@@ -21,7 +21,7 @@ import {
   composeUpWithWait,
   validateCompose,
 } from "../utils/exec.ts";
-import { ensureDir, fileExists, writeTextFile } from "../utils/fs.ts";
+import { fileExists, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
 export interface InitOptions {
@@ -115,8 +115,6 @@ async function checkPrerequisites(): Promise<void> {
     logger.info("  ✓ Docker socket is accessible");
   } catch (error) {
     logger.error("❌ Cannot access Docker socket");
-    logger.info("You may need to run this command with sudo or add your user to the docker group");
-    logger.info("See: https://docs.docker.com/engine/install/linux-postinstall/");
     throw new Error(`Docker socket permission denied`, { cause: error });
   }
 }
@@ -152,12 +150,7 @@ function loadConfigurationFromEnv(): {
 
   logger.info("  ✓ Configuration loaded from environment");
 
-  return {
-    adminEmail,
-    towerDomain,
-    registryDomain,
-    otelDomain,
-  };
+  return { adminEmail, towerDomain, registryDomain, otelDomain };
 }
 
 /**
@@ -174,9 +167,9 @@ function isValidDomain(domain: string): boolean {
  * Hash credentials from environment variables
  */
 async function hashCredentialsFromEnv(): Promise<{
-  tower: { username: string; passwordHash: string };
-  registry: { username: string; passwordHash: string };
-  otel: { username: string; passwordHash: string };
+  tower: string;
+  registry: string;
+  otel: string;
 }> {
   logger.info("Hashing credentials from environment variables...");
 
@@ -204,56 +197,9 @@ async function hashCredentialsFromEnv(): Promise<{
   logger.info("  ✓ Credentials hashed");
 
   return {
-    tower: {
-      username: "tower",
-      passwordHash: towerHash,
-    },
-    registry: {
-      username: "ci",
-      passwordHash: registryHash,
-    },
-    otel: {
-      username: "admin",
-      passwordHash: otelHash,
-    },
-  };
-}
-
-/**
- * Load credentials from environment variables (deprecated - kept for compatibility)
- */
-async function _loadCredentialsFromEnv(
-  dataDir: string,
-): Promise<{
-  towerPassword: string;
-  registryPassword: string;
-}> {
-  // Create data directory if it doesn't exist
-  await ensureDir(dataDir);
-
-  const towerPassword = Deno.env.get("TOWER_PASSWORD");
-  const registryPassword = Deno.env.get("REGISTRY_PASSWORD");
-
-  const MIN_PASSWORD_LENGTH = 16;
-
-  if (!towerPassword || towerPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(
-      `Invalid or missing TOWER_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
-    );
-  }
-  if (!registryPassword || registryPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(
-      `Invalid or missing REGISTRY_PASSWORD environment variable (must be at least ${MIN_PASSWORD_LENGTH} characters)`,
-    );
-  }
-
-  // Hash passwords with bcrypt
-  const towerHash = await hash(towerPassword);
-  const registryHash = await hash(registryPassword);
-
-  return {
-    towerPassword: towerHash,
-    registryPassword: registryHash,
+    tower: towerHash,
+    registry: registryHash,
+    otel: otelHash,
   };
 }
 
@@ -268,11 +214,7 @@ function generateInitialIntent(
     otelDomain: string;
   },
   dataDir: string,
-  credentials: {
-    tower: { username: string; passwordHash: string };
-    registry: { username: string; passwordHash: string };
-    otel: { username: string; passwordHash: string };
-  },
+  credentials: { tower: string; registry: string; otel: string },
 ): Intent {
   const intent: Intent = {
     version: "1",
@@ -280,19 +222,19 @@ function generateInitialIntent(
     tower: {
       version: denoJson.version,
       domain: config.towerDomain,
-      username: credentials.tower.username,
-      passwordHash: credentials.tower.passwordHash,
+      username: "admin",
+      passwordHash: credentials.tower,
     },
     registry: {
       domain: config.registryDomain,
-      username: credentials.registry.username,
-      passwordHash: credentials.registry.passwordHash,
+      username: "admin",
+      passwordHash: credentials.registry,
     },
     otel: {
       version: "latest",
       domain: config.otelDomain,
-      username: credentials.otel.username,
-      passwordHash: credentials.otel.passwordHash,
+      username: "admin",
+      passwordHash: credentials.otel,
     },
     apps: [], // Empty initially - apps added via deployments
   };
