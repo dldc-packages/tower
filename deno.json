@@ -1,6 +1,6 @@
 {
   "name": "@dldc/tower",
-  "version": "0.1.38",
+  "version": "0.1.39",
   "exports": "./src/types.ts",
   "tasks": {
     "bump": "deno run -A jsr:@mys/bump@1",
