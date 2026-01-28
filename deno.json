@@ -1,10 +1,7 @@
 {
   "name": "@dldc/tower",
   "version": "0.1.37",
-  "exports": {
-    ".": "./mod.ts",
-    "./types": "./src/types.ts"
-  },
+  "exports": "./src/types.ts",
   "tasks": {
     "bump": "deno run -A jsr:@mys/bump@1",
     "update": "deno run -A jsr:@molt/cli",
