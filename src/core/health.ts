@@ -85,6 +85,11 @@ export async function getContainerHealth(containerName: string): Promise<Contain
     ]);
 
     if (!result.success) {
+      logger.error(
+        `Failed to inspect container ${containerName}: ${
+          result.stderr || result.stdout || "unknown error"
+        }`,
+      );
       return {
         name: containerName,
         status: "unknown",
