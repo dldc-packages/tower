@@ -141,16 +141,25 @@ export async function validateCompose(composeFile: string): Promise<void> {
 /**
  * Reload Caddy configuration
  */
-export async function caddyReload(): Promise<void> {
-  await execOrThrow([
-    "docker",
-    "exec",
-    "caddy",
+export async function caddyReload(composeFile: string): Promise<void> {
+  const reloadArgs = [
     "caddy",
     "reload",
     "--config",
-    "/etc/caddy/Caddyfile",
+    "/etc/caddy/Caddy.json",
+  ];
+
+  await execOrThrow([
+    "docker",
+    "compose",
+    "-f",
+    composeFile,
+    "exec",
+    "-T",
+    "caddy",
+    ...reloadArgs,
   ]);
+  return;
 }
 
 /**

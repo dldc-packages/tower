@@ -84,8 +84,8 @@ export async function apply(intent: Intent): Promise<void> {
   console.log(`Wrote Caddy config to ${caddyPath}`);
 
   // Reload Caddy in the container
-  await caddyReload();
-  console.log("✓ Caddy config reloaded via docker exec");
+  await caddyReload(composePath);
+  console.log("✓ Caddy config reloaded via docker compose exec");
   console.log("✓ Reloaded Caddy via admin API");
 
   // Step 8: Save applied intent with resolved images
