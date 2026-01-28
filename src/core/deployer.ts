@@ -56,6 +56,10 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
   const dataDir = intent.dataDir ?? "/var/infra";
   const services: ResolvedService[] = [];
 
+  const baseEnvs = {
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4317",
+  };
+
   // Add infrastructure services
   services.push({
     kind: "infra",
@@ -87,6 +91,9 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       timeout: 5,
       retries: 3,
     },
+    env: {
+      ...baseEnvs,
+    },
   });
 
   services.push({
@@ -96,8 +103,6 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     domain: intent.registry.domain,
     port: 5000,
     imageDigest: "registry:2",
-    upstreamName: "registry",
-    upstreamPort: 5000,
     auth: {
       policy: "basic_write_only",
       basicUsers: [
@@ -112,6 +117,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       { type: "named", name: "registry_data", target: "/var/lib/registry" },
     ],
     env: {
+      ...baseEnvs,
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: "/var/lib/registry",
       REGISTRY_STORAGE_DELETE_ENABLED: "true",
     },
@@ -132,8 +138,6 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
     domain: intent.tower.domain,
     port: 3000,
     imageDigest: towerImage,
-    upstreamName: "tower",
-    upstreamPort: 3100,
     auth: {
       policy: "basic_all",
       basicUsers: [
@@ -149,13 +153,14 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
       { type: "bind", source: "/var/run/docker.sock", target: "/var/run/docker.sock" },
     ],
     env: {
+      ...baseEnvs,
       TOWER_DATA_DIR: dataDir,
       OTEL_DENO: "true",
       OTEL_DENO_CONSOLE: "capture",
     },
     healthCheck: {
       path: "/status",
-      port: 3100,
+      port: 3000,
       interval: 10,
       timeout: 5,
       retries: 3,
@@ -165,13 +170,11 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
   const otelImage = `grafana/otel-lgtm:${intent.otel.version}`;
   services.push({
     kind: "infra",
-    name: "otel",
+    name: "otel-lgtm",
     image: otelImage,
     domain: intent.otel.domain,
     port: 3000,
     imageDigest: otelImage,
-    upstreamName: "otel-lgtm",
-    upstreamPort: 3000,
     auth: {
       policy: "none",
     },
@@ -195,7 +198,7 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
 
   // Resolve all app images in parallel
   const appServices = await Promise.all(
-    intent.apps.map(async (app) => {
+    intent.apps.map(async (app): Promise<ResolvedService> => {
       const normalizedImageRef = normalizeLocalRegistry(app.image, intent);
       const resolvedImage = await resolveImageToDigest(normalizedImageRef, intent);
 
@@ -203,19 +206,14 @@ export async function resolveServices(intent: Intent): Promise<ResolvedService[]
         logger.debug(`Resolved ${app.name}: ${app.image} → ${resolvedImage}`);
       }
 
-      const normalizedApp = {
-        ...app,
-        port: app.port ?? 3000,
-      };
-
       return {
-        kind: "app" as const,
-        ...normalizedApp,
+        kind: "app",
         imageDigest: resolvedImage ?? normalizedImageRef,
-        upstreamName: app.name,
-        upstreamPort: normalizedApp.port,
-        auth: app.auth ?? { policy: "none" as const },
-        restart: "unless-stopped",
+        ...app,
+        env: {
+          ...baseEnvs,
+          ...app.env,
+        },
       };
     }),
   );

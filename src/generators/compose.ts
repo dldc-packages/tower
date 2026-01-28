@@ -54,7 +54,7 @@ function serviceToCompose(service: ResolvedService): Record<string, unknown> {
     ? {
       ...(service.env ?? {}),
       ...(service.secrets ?? {}),
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318/v1/traces",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318",
     }
     : {
       ...(service.env ?? {}),

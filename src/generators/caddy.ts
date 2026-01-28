@@ -25,8 +25,7 @@ export function generateCaddyJson(
 
     if (!domain || serviceName === "caddy") continue;
 
-    const upstreamPort = svc.upstreamPort ?? port;
-    const upstreamDial = `${svc.upstreamName ?? serviceName}:${upstreamPort}`;
+    const upstreamDial = `${serviceName}:${port}`;
     const auth = svc.auth;
     const accounts = toBasicAccounts(auth?.basicUsers);
 
