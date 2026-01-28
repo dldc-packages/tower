@@ -4,10 +4,10 @@
  * Coordinates the full deployment flow from intent to running services.
  */
 
-import type { Intent } from "@dldc/tower/types";
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
+import type { Intent } from "../types.ts";
 import { caddyReload, composeUpWithWait, validateCompose } from "../utils/exec.ts";
 import { writeTextFile } from "../utils/fs.ts";
 import { validateDns } from "./dns.ts";
