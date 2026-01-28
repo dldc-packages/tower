@@ -92,6 +92,23 @@ export async function composeUp(composeFile: string): Promise<void> {
 }
 
 /**
+ * Run docker compose up -d --wait with streaming output
+ * Blocks until all services are healthy
+ */
+export async function composeUpWithWait(composeFile: string): Promise<void> {
+  const command = new Deno.Command("docker", {
+    args: ["compose", "-f", composeFile, "up", "-d", "--wait"],
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+
+  const result = await command.output();
+  if (result.code !== 0) {
+    throw new Error(`docker compose up --wait failed with code ${result.code}`);
+  }
+}
+
+/**
  * Run docker compose down
  */
 export async function composeDown(composeFile: string): Promise<void> {

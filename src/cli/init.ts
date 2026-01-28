@@ -11,11 +11,16 @@ import denoJson from "../../deno.json" with { type: "json" };
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { collectDomains, resolveSemver, resolveServices } from "../core/deployer.ts";
 import { validateDns } from "../core/dns.ts";
-import { waitForHealthy } from "../core/health.ts";
+
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
 import type { Intent } from "../types.ts";
-import { checkDocker, checkDockerCompose, composeUp, validateCompose } from "../utils/exec.ts";
+import {
+  checkDocker,
+  checkDockerCompose,
+  composeUpWithWait,
+  validateCompose,
+} from "../utils/exec.ts";
 import { ensureDir, fileExists, writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -61,12 +66,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   logger.info("");
   await applyInitialStack(intent, dataDir);
 
-  // Step 6: Wait for services to be healthy
-  logger.info("");
-  logger.info("Waiting for services to start...");
-  await waitForHealthy(["tower", "caddy", "registry", "otel-lgtm"], 120);
-
-  // Step 7: Print final summary
+  // Step 6: Print final summary
   logger.info("");
   printSummary(intent);
 }
@@ -364,11 +364,11 @@ async function applyInitialStack(
   await writeTextFile(`${dataDir}/intent.json`, JSON.stringify(appliedIntent, null, 2));
   logger.info(`✓ Wrote intent.json to ${dataDir}`);
 
-  // Step 8: Start the production stack
+  // Step 8: Start the production stack (with health check waiting)
   logger.info("");
   logger.info("Starting production stack...");
-  await composeUp(composePath);
-  logger.info("✓ Production stack started");
+  await composeUpWithWait(composePath);
+  logger.info("✓ Production stack started and all services healthy");
 }
 
 /**

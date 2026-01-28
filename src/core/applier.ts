@@ -8,13 +8,12 @@ import type { Intent } from "@dldc/tower/types";
 import { DEFAULT_DATA_DIR } from "../config.ts";
 import { generateCaddyJson } from "../generators/caddy.ts";
 import { generateCompose } from "../generators/compose.ts";
-import { composeUp, validateCompose } from "../utils/exec.ts";
+import { composeUpWithWait, validateCompose } from "../utils/exec.ts";
 import { writeTextFile } from "../utils/fs.ts";
 import { logger } from "../utils/logger.ts";
 import { loadCaddyConfig } from "./caddyAdmin.ts";
 import { collectDomains, resolveSemver, resolveServices } from "./deployer.ts";
 import { validateDns } from "./dns.ts";
-import { waitForHealthy } from "./health.ts";
 import { validateIntent } from "./validator.ts";
 
 /** * Apply deployment intent
@@ -82,20 +81,15 @@ export async function apply(intent: Intent): Promise<void> {
   await writeTextFile(caddyPath, caddyJson);
   logger.info(`✓ Wrote Caddy.json to ${dataDir}`);
 
-  // Step 7: Apply via docker compose up
-  await composeUp(composePath);
-  logger.info("✓ Applied docker-compose.yml");
+  // Step 7: Apply via docker compose up (with health check waiting)
+  await composeUpWithWait(composePath);
+  logger.info("✓ Applied docker-compose.yml and waited for health checks");
 
-  // Step 8: Wait for health checks
-  const containerNames = services.map((s) => s.name);
-  await waitForHealthy(containerNames, 60);
-  logger.info("✓ All containers healthy");
-
-  // Step 9: Reload Caddy (validate and load config via admin API)
+  // Step 8: Reload Caddy (validate and load config via admin API)
   await loadCaddyConfig(caddyJson);
   logger.info("✓ Reloaded Caddy via admin API");
 
-  // Step 10: Save applied intent with resolved images
+  // Step 9: Save applied intent with resolved images
   const appliedIntent = {
     ...validatedIntent,
     appliedAt: new Date().toISOString(),

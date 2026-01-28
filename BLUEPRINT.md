@@ -453,7 +453,8 @@ src/
 │   ├── registry.ts                # Docker Registry HTTP client
 │   ├── semver.ts                  # Semver range matching
 │   ├── applier.ts                 # Orchestrate apply flow
-│   ├── health.ts                  # Wait for container health
+│   ├── deployer.ts                # Shared deployment logic (init & apply)
+│   ├── health.ts                  # Get container health status
 │   └── dns.ts                     # Validate DNS propagation
 ├── generators/
 │   ├── compose.ts                 # Generate docker-compose.yml
